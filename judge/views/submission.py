@@ -141,8 +141,8 @@ class SubmissionSourceRaw(SubmissionSource):
 @require_POST
 def abort_submission(request, submission):
     submission = get_object_or_404(Submission, id=int(submission))
-    if (not request.user.is_authenticated or
-                    request.user.profile != submission.user and not request.user.has_perm('abort_any_submission')):
+    if (not request.user.is_authenticated or (submission.was_rejudged or
+            (request.user.profile != submission.user)) and not request.user.has_perm('abort_any_submission')):
         raise PermissionDenied()
     submission.abort()
     return HttpResponseRedirect(reverse('submission_status', args=(submission.id,)))
@@ -182,10 +182,18 @@ class SubmissionsListBase(DiggPaginatorMixin, TitleMixin, ListView):
                                                           queryset=ProblemTranslation.objects.filter(
                                                               language=self.request.LANGUAGE_CODE), to_attr='_trans'))
         if self.in_contest:
-            return queryset.filter(contest__participation__contest_id=self.contest.id)
+            queryset = queryset.filter(contest__participation__contest_id=self.contest.id)
+            if self.contest.hide_scoreboard and self.contest.is_in_contest(self.request):
+                queryset = queryset.filter(contest__participation__user=self.request.user.profile)
+            return queryset
         else:
             queryset = queryset.select_related('contest__participation__contest') \
                 .defer('contest__participation__contest__description')
+
+            # This is not technically correct since contest organizers *should* see these, but
+            # the join would be far too messy
+            if not self.request.user.has_perm('judge.see_private_contest'):
+                queryset = queryset.exclude(contest__participation__contest__hide_scoreboard=True)
 
         if self.selected_languages:
             queryset = queryset.filter(language_id__in=Language.objects.filter(key__in=self.selected_languages))

@@ -15,6 +15,7 @@ from django.db import connection, IntegrityError
 from django.db.models import Q, Min, Max, Count, Sum, Case, When, IntegerField
 from django.http import HttpResponseRedirect, HttpResponseBadRequest, Http404, HttpResponse
 from django.shortcuts import render, get_object_or_404
+from django.template.defaultfilters import date as date_filter
 from django.utils import timezone
 from django.utils.functional import cached_property
 from django.utils.html import escape, format_html
@@ -34,15 +35,13 @@ from judge.utils.views import TitleMixin, generic_message
 
 __all__ = ['ContestList', 'ContestDetail', 'contest_ranking', 'ContestJoin', 'ContestLeave', 'ContestCalendar',
            'contest_ranking_ajax', 'participation_list', 'own_participation_list', 'get_contest_ranking_list',
-           'base_contest_ranking_list', 'contest_access_check']
+           'base_contest_ranking_list']
 
 
 def _find_contest(request, key, private_check=True):
     try:
         contest = Contest.objects.get(key=key)
-        if private_check and not contest.is_public and not request.user.has_perm('judge.see_private_contest') and (
-                    not request.user.has_perm('judge.edit_own_contest') or
-                    not contest.organizers.filter(id=request.user.profile.id).exists()):
+        if private_check and not contest.is_accessible_by(request.user):
             raise ObjectDoesNotExist()
     except ObjectDoesNotExist:
         return generic_message(request, _('No such contest'),
@@ -220,14 +219,17 @@ class ContestAccessCodeForm(forms.Form):
 class ContestJoin(LoginRequiredMixin, ContestMixin, BaseDetailView):
     def get(self, request, *args, **kwargs):
         self.object = self.get_object()
-        try:
-            return self.join_contest(request)
-        except ContestAccessDenied:
-            return self.ask_for_access_code()
+        return self.ask_for_access_code()
 
     def post(self, request, *args, **kwargs):
         self.object = self.get_object()
-        return self.ask_for_access_code(ContestAccessCodeForm(request.POST))
+        try:
+            return self.join_contest(request)
+        except ContestAccessDenied:
+            if request.POST.get('access_code'):
+                return self.ask_for_access_code(ContestAccessCodeForm(request.POST))
+            else:
+                return HttpResponseRedirect(request.path)
 
     def join_contest(self, request, access_code=None):
         contest = self.object
@@ -300,7 +302,7 @@ class ContestJoin(LoginRequiredMixin, ContestMixin, BaseDetailView):
 
 
 class ContestLeave(LoginRequiredMixin, ContestMixin, BaseDetailView):
-    def get(self, request, *args, **kwargs):
+    def post(self, request, *args, **kwargs):
         contest = self.get_object()
 
         profile = request.user.profile
@@ -319,7 +321,6 @@ class ContestCalendar(TitleMixin, ContestListMixin, TemplateView):
     firstweekday = SUNDAY
     weekday_classes = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
     template_name = 'contest/calendar.html'
-    title = ugettext_lazy('Contests')
 
     def get(self, request, *args, **kwargs):
         try:
@@ -362,13 +363,19 @@ class ContestCalendar(TitleMixin, ContestListMixin, TemplateView):
         context = super(ContestCalendar, self).get_context_data(**kwargs)
 
         try:
-            context['month'] = date(self.year, self.month, 1)
+            month = date(self.year, self.month, 1)
         except ValueError:
             raise Http404()
+        else:
+            context['title'] = _('Contests in %(month)s') % {'month': date_filter(month, _("F Y"))}
 
         dates = Contest.objects.aggregate(min=Min('start_time'), max=Max('end_time'))
-        min_month = dates['min'].year, dates['min'].month
-        max_month = max((dates['max'].year, dates['max'].month), (self.today.year, self.today.month))
+        min_month = (self.today.year, self.today.month)
+        if dates['min'] is not None:
+            min_month = dates['min'].year, dates['min'].month
+        max_month = (self.today.year, self.today.month)
+        if dates['max'] is not None:
+            max_month = max((dates['max'].year, dates['max'].month), (self.today.year, self.today.month))
 
         month = (self.year, self.month)
         if month < min_month or month > max_month:
@@ -472,8 +479,8 @@ def base_contest_ranking_list(contest, problems, queryset, for_user=None):
 
 def contest_ranking_list(contest, problems):
     return base_contest_ranking_list(contest, problems, contest.users.filter(virtual=0)
-                                     .prefetch_related('user__organizations')
-                                     .order_by('-score', 'cumtime'))
+                                                                     .prefetch_related('user__organizations')
+                                                                     .order_by('-score', 'cumtime'))
 
 
 def get_participation_ranking_profile(contest, participation, problems):
@@ -494,6 +501,11 @@ def get_participation_ranking_profile(contest, participation, problems):
 def get_contest_ranking_list(request, contest, participation=None, ranking_list=contest_ranking_list,
                              show_current_virtual=True, ranker=ranker):
     problems = list(contest.contest_problems.select_related('problem').defer('problem__description').order_by('order'))
+
+    if contest.hide_scoreboard and contest.is_in_contest(request):
+        return [(_('???'), get_participation_ranking_profile(contest,
+                                                             request.user.profile.current_contest, problems))], problems
+
     users = ranker(ranking_list(contest, problems), key=attrgetter('points', 'cumtime'))
 
     if show_current_virtual:
@@ -520,16 +532,9 @@ def contest_ranking_ajax(request, contest, participation=None):
     })
 
 
-def contest_access_check(request, contest):
-    if not request.user.has_perm('judge.see_private_contest'):
-        if not contest.is_public:
-            raise Http404()
-        if contest.start_time is not None and contest.start_time > timezone.now():
-            raise Http404()
-
-
 def contest_ranking_view(request, contest, participation=None):
-    contest_access_check(request, contest)
+    if not contest.can_see_scoreboard(request):
+        raise Http404()
     users, problems = get_contest_ranking_list(request, contest, participation)
 
     context = {
@@ -579,7 +584,8 @@ def base_participation_list(request, contest, profile):
     contest, exists = _find_contest(request, contest)
     if not exists:
         return contest
-    contest_access_check(request, contest)
+    if not contest.can_see_scoreboard(request):
+        raise Http404()
 
     req_username = request.user.username if request.user.is_authenticated else None
     prof_username = profile.user.username

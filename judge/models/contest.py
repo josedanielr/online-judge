@@ -62,6 +62,10 @@ class Contest(models.Model):
                                                 'specified organizations.'))
     is_rated = models.BooleanField(verbose_name=_('contest rated'), help_text=_('Whether this contest can be rated.'),
                                    default=False)
+    hide_scoreboard = models.BooleanField(verbose_name=_('hide scoreboard'),
+                                          help_text=_('Whether the scoreboard should remain hidden for the duration '
+                                                      'of the contest.'),
+                                          default=False)
     use_clarifications = models.BooleanField(verbose_name=_('no comments'),
                                              help_text=_("Use clarification system instead of comments."),
                                              default=True)
@@ -80,6 +84,8 @@ class Contest(models.Model):
     organizations = models.ManyToManyField(Organization, blank=True, verbose_name=_('organizations'),
                                            help_text=_('If private, only these organizations may see the contest'))
     og_image = models.CharField(verbose_name=_('OpenGraph image'), default='', max_length=150, blank=True)
+    logo_override_image = models.CharField(verbose_name=_('Logo override image'), default='', max_length=150, blank=True,
+                                           help_text=_('This image will replace the default site logo for users inside the contest.'))
     tags = models.ManyToManyField(ContestTag, verbose_name=_('contest tags'), blank=True, related_name='contests')
     user_count = models.IntegerField(verbose_name=_('the amount of live participants'), default=0)
     summary = models.TextField(blank=True, verbose_name=_('contest summary'),
@@ -91,6 +97,25 @@ class Contest(models.Model):
     def clean(self):
         if self.start_time >= self.end_time:
             raise ValidationError('What is this? A contest that ended before it starts?')
+
+    def is_in_contest(self, request):
+        if request.user.is_authenticated:
+            profile = request.user.profile
+            return profile and profile.current_contest is not None and profile.current_contest.contest == self
+        return False
+
+    def can_see_scoreboard(self, request):
+        if request.user.has_perm('judge.see_private_contest'):
+            return True
+        if request.user.is_authenticated and self.organizers.filter(id=request.user.profile.id).exists():
+            return True
+        if not self.is_public:
+            return False
+        if self.start_time is not None and self.start_time > timezone.now():
+            return False
+        if self.hide_scoreboard and not self.is_in_contest(request) and self.end_time > timezone.now():
+            return False
+        return True
 
     @property
     def contest_window_length(self):
@@ -132,6 +157,34 @@ class Contest(models.Model):
     def update_user_count(self):
         self.user_count = self.users.filter(virtual=0).count()
         self.save()
+
+    @cached_property
+    def show_scoreboard(self):
+        if self.hide_scoreboard and not self.ended:
+            return False
+        return True
+
+    def is_accessible_by(self, user):
+        # Contest is public
+        if self.is_public:
+            # Contest is not private to an organization
+            if not self.is_private:
+                return True
+            # User is in the organizations
+            if user.is_authenticated and \
+                    self.organizations.filter(id__in=user.profile.organizations.all()):
+                return True
+
+        # If the user can view all contests
+        if user.has_perm('judge.see_private_contest'):
+            return True
+
+        # If the user is a contest organizer
+        if user.has_perm('judge.edit_own_contest') and \
+           self.organizers.filter(id=user.profile.id).exists():
+            return True
+
+        return False
 
     update_user_count.alters_data = True
 

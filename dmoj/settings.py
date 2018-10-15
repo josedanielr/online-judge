@@ -152,11 +152,11 @@ MIDDLEWARE = (
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'judge.user_log.LogUserAccessMiddleware',
     'judge.timezone.TimezoneMiddleware',
+    'impersonate.middleware.ImpersonateMiddleware',
     'judge.middleware.ContestMiddleware',
     'django.contrib.flatpages.middleware.FlatpageFallbackMiddleware',
     'judge.social_auth.SocialAuthExceptionMiddleware',
     'django.contrib.redirects.middleware.RedirectFallbackMiddleware',
-    'impersonate.middleware.ImpersonateMiddleware',
 )
 
 IMPERSONATE_REQUIRE_SUPERUSER = True
@@ -249,10 +249,12 @@ LANGUAGES = [
     ('es', _('Spanish')),
     ('fr', _('French')),
     ('hr', _('Croatian')),
+    ('hu', _('Hungarian')),
     ('ko', _('Korean')),
     ('ro', _('Romanian')),
     ('ru', _('Russian')),
     ('sr-latn', _('Serbian (Latin)')),
+    ('tr', _('Turkish')),
     ('vi', _('Vietnamese')),
     ('zh-hans', _('Simplified Chinese')),
 ]

@@ -15,7 +15,8 @@ from judge.sitemap import ProblemSitemap, UserSitemap, HomePageSitemap, UrlSitem
 from judge.views import TitledTemplateView
 from judge.views import organization, language, status, blog, problem, mailgun, license, register, user, \
     submission, widgets, comment, contests, api, ranked_submission, stats, preview, ticket
-from judge.views.problem_data import ProblemDataView, problem_data_file, problem_init_view
+from judge.views.problem_data import ProblemDataView, ProblemSubmissionDiff, \
+    problem_data_file, problem_init_view
 from judge.views.register import RegistrationView, ActivationView
 from judge.views.select2 import UserSelect2View, OrganizationSelect2View, ProblemSelect2View, CommentSelect2View, \
     ContestSelect2View, UserSearchSelect2View, ContestUserSearchSelect2View, TicketUserSelect2View, AssigneeSelect2View
@@ -116,6 +117,7 @@ urlpatterns = [
 
         url(r'^/test_data$', ProblemDataView.as_view(), name='problem_data'),
         url(r'^/test_data/init$', problem_init_view, name='problem_data_init'),
+        url(r'^/test_data/diff$', ProblemSubmissionDiff.as_view(), name='problem_submission_diff'),
         url(r'^/data/(?P<path>.+)$', problem_data_file, name='problem_data_file'),
 
         url(r'^/tickets$', ticket.ProblemTicketListView.as_view(), name='problem_ticket_list'),
@@ -193,7 +195,8 @@ urlpatterns = [
     ])),
 
     url(r'^organizations/$', organization.OrganizationList.as_view(), name='organization_list'),
-    url(r'^organization/(?P<key>\w+)', include([
+    url(r'^organization/(?P<key>\w+)(?P<rest>/.*)?$', organization.fallback),
+    url(r'^organization/(?P<pk>\d+)-(?P<slug>[\w-]+)', include([
         url(r'^$', organization.OrganizationHome.as_view(), name='organization_home'),
         url(r'^/users$', organization.OrganizationUsers.as_view(), name='organization_users'),
         url(r'^/join$', organization.JoinOrganization.as_view(), name='join_organization'),
@@ -202,7 +205,7 @@ urlpatterns = [
         url(r'^/kick$', organization.KickUserWidgetView.as_view(), name='organization_user_kick'),
 
         url(r'^/request$', organization.RequestJoinOrganization.as_view(), name='request_organization'),
-        url(r'^/request/(?P<pk>\d+)$', organization.OrganizationRequestDetail.as_view(),
+        url(r'^/request/(?P<rpk>\d+)$', organization.OrganizationRequestDetail.as_view(),
             name='request_organization_detail'),
         url(r'^/requests/', include([
             url(r'^pending$', organization.OrganizationRequestView.as_view(), name='organization_requests_pending'),
@@ -213,7 +216,7 @@ urlpatterns = [
                 name='organization_requests_rejected'),
         ])),
 
-        url(r'^/$', lambda _, key: HttpResponsePermanentRedirect(reverse('organization_home', args=[key]))),
+        url(r'^/$', lambda _, pk, slug: HttpResponsePermanentRedirect(reverse('organization_home', args=[pk, slug]))),
     ])),
 
     url(r'^runtimes/$', language.LanguageList.as_view(), name='runtime_list'),

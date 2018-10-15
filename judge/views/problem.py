@@ -91,6 +91,10 @@ class SolvedProblemMixin(object):
         return self.profile is not None and self.profile.current_contest is not None
 
     @cached_property
+    def contest(self):
+        return self.request.user.profile.current_contest.contest
+
+    @cached_property
     def profile(self):
         if not self.request.user.is_authenticated:
             return None
@@ -343,15 +347,15 @@ class ProblemList(QueryStringSortMixin, TitleMixin, SolvedProblemMixin, ListView
     def get_normal_queryset(self):
         filter = Q(is_public=True)
         if self.profile is not None:
-            filter |= Q(
-                id__in=Problem.objects.annotate(contest_user_count=Count('contest__users'))
-                              .filter(contest__users=self.profile.current_contest_id,
-                                      contest_user_count__gt=0).values('id').distinct()
-            )
             filter |= Q(authors=self.profile)
             filter |= Q(curators=self.profile)
             filter |= Q(testers=self.profile)
         queryset = Problem.objects.filter(filter).select_related('group').defer('description')
+        if not self.request.user.has_perm('see_organization_problem'):
+            filter = Q(is_organization_private=False)
+            if self.profile is not None:
+                filter |= Q(organizations__id__in=self.profile.organizations.all())
+            queryset = queryset.filter(filter)
         if self.profile is not None and self.hide_solved:
             queryset = queryset.exclude(id__in=Submission.objects.filter(user=self.profile, points=F('problem__points'))
                                         .values_list('problem__id', flat=True))
@@ -406,6 +410,7 @@ class ProblemList(QueryStringSortMixin, TitleMixin, SolvedProblemMixin, ListView
         else:
             context['hot_problems'] = None
             context['point_start'], context['point_end'], context['point_values'] = 0, 0, {}
+            context['hide_contest_scoreboard'] = self.contest.hide_scoreboard
         return context
 
     def get_noui_slider_points(self):
