@@ -20,3 +20,7 @@ pyyaml
 jinja2
 django_jinja
 llist
+django_select2
+websocket-client
+websocket
+pymysql
