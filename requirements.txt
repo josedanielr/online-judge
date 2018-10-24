@@ -1,4 +1,4 @@
-Django==1.11.9
+Django==1.11.16
 django_compressor
 django-mptt>=0.8.4,<0.9
 -e git+https://github.com/DMOJ/django-pagedown.git#egg=django-pagedown
