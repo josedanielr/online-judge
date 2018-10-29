@@ -523,6 +523,9 @@ def contest_ranking_ajax(request, contest, participation=None):
     if not exists:
         return HttpResponseBadRequest('Invalid contest', content_type='text/plain')
 
+    if not contest.can_see_scoreboard(request):
+        raise Http404()
+
     users, problems = get_contest_ranking_list(request, contest, participation)
     return render(request, 'contest/ranking-table.html', {
         'users': users,
@@ -535,6 +538,7 @@ def contest_ranking_ajax(request, contest, participation=None):
 def contest_ranking_view(request, contest, participation=None):
     if not contest.can_see_scoreboard(request):
         raise Http404()
+
     users, problems = get_contest_ranking_list(request, contest, participation)
 
     context = {
