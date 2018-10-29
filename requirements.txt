@@ -7,7 +7,7 @@ django-reversion
 django-social-share
 django-sortedm2m
 django-impersonate
-http://nexus.uclv.edu.cu/repository/github/DMOJ/dmoj-wpadmin/archive/master.zip#egg=dmoj-wpadmin
+http://nexus.uclv.edu.cu/repository/github/DMOJ/dmoj-wpadmin/archive/master.zip
 lxml
 Pygments
 mistune
