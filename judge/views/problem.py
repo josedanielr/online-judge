@@ -244,6 +244,10 @@ class ProblemPdfView(ProblemMixin, SingleObjectMixin, View):
                     'url': request.build_absolute_uri()
                 }).replace('"//', '"http://').replace("'//", "'http://")
 
+                # replace also local relative urls in html
+                base_url = "http://" + settings.ALLOWED_HOSTS[0] + "/"
+                maker.html = maker.html.replace('"/', '"' + base_url).replace("'/", "'" +  base_url)
+
                 for file in ('style.css', 'pygment-github.css', 'mathjax_config.js'):
                     maker.load(file, os.path.join(settings.DMOJ_RESOURCES, file))
                 maker.make()
