@@ -36,7 +36,7 @@ $(function () {
                                 success: function () {
                                     $.ajax({
                                         type: 'GET',
-                                        url: '//dmoj.uclv.cu/lib/MathJax/MathJax.js?config=TeX-AMS_HTML',
+                                        url: '//dmoj.uclv.edu.cu/lib/MathJax/MathJax.js?config=TeX-AMS_HTML',
                                         dataType: 'script',
                                         cache: true,
                                         success: function () {
