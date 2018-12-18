@@ -154,6 +154,7 @@ MIDDLEWARE = (
     'judge.user_log.LogUserAccessMiddleware',
     'judge.timezone.TimezoneMiddleware',
     'impersonate.middleware.ImpersonateMiddleware',
+    'judge.middleware.DMOJImpersonationMiddleware',
     'judge.middleware.ContestMiddleware',
     'django.contrib.flatpages.middleware.FlatpageFallbackMiddleware',
     'judge.social_auth.SocialAuthExceptionMiddleware',
@@ -279,7 +280,6 @@ MARKDOWN_USER_LARGE_STYLE = {
     'safe_mode': True,
     'nofollow': True,
     'use_camo': True,
-    'texoid': True,
     'math': True,
 }
 

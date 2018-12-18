@@ -1,5 +1,5 @@
 from django.db.models import Q, F
-from django.http import JsonResponse
+from django.http import JsonResponse, Http404
 from django.shortcuts import get_object_or_404
 from django.utils.encoding import smart_text
 from django.views.generic.list import BaseListView
@@ -49,7 +49,7 @@ class UserSelect2View(Select2View):
 
 class OrganizationSelect2View(Select2View):
     def get_queryset(self):
-        return Organization.objects.filter(Q(key__icontains=self.term) | Q(name__icontains=self.term))
+        return Organization.objects.filter(name__icontains=self.term)
 
 
 class ProblemSelect2View(Select2View):

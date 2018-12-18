@@ -6,7 +6,7 @@ from django.db.models import Count
 from django.db.models.expressions import Value, F
 from django.db.models.functions import Coalesce
 from django.forms import ModelForm
-from django.http import HttpResponseForbidden, HttpResponseRedirect
+from django.http import HttpResponseForbidden, HttpResponseNotFound, HttpResponseRedirect
 from django.urls import reverse_lazy
 from django.utils.decorators import method_decorator
 from django.utils.translation import ugettext as _
@@ -71,6 +71,16 @@ class CommentedDetailView(TemplateResponseMixin, SingleObjectMixin, View):
 
         if self.is_comment_locked():
             return HttpResponseForbidden()
+
+        parent = request.POST.get('parent')
+        if parent:
+            try:
+                parent = int(parent)
+            except ValueError:
+                return HttpResponseNotFound()
+            else:
+                if not Comment.objects.filter(hidden=False, id=parent, page=page).exists():
+                    return HttpResponseNotFound()
 
         form = CommentForm(request, request.POST)
         if form.is_valid():

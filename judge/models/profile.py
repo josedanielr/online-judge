@@ -29,17 +29,13 @@ class Organization(models.Model):
     name = models.CharField(max_length=128, verbose_name=_('organization title'))
     slug = models.SlugField(max_length=128, verbose_name=_('organization slug'),
                             help_text=_('Organization name shown in URL'))
-    key = models.CharField(max_length=6, verbose_name=_('identifier'), unique=True,
-                           help_text=_('Organization name shows in URL'), null=True,
-                           validators=[RegexValidator('^[A-Za-z0-9]+$',
-                                                      'Identifier must contain letters and numbers only')])
     short_name = models.CharField(max_length=20, verbose_name=_('short name'),
                                   help_text=_('Displayed beside user name during contests'))
     about = models.TextField(verbose_name=_('organization description'))
     registrant = models.ForeignKey('Profile', verbose_name=_('registrant'),
                                    related_name='registrant+',
                                    help_text=_('User who registered this organization'))
-    admins = models.ManyToManyField('Profile', verbose_name=_('administrators'), related_name='+',
+    admins = models.ManyToManyField('Profile', verbose_name=_('administrators'), related_name='admin_of',
                                     help_text=_('Those who can edit this organization'))
     creation_date = models.DateTimeField(verbose_name=_('creation date'), auto_now_add=True)
     is_open = models.BooleanField(verbose_name=_('is open organization?'),
@@ -68,7 +64,7 @@ class Organization(models.Model):
         return reverse('organization_users', args=(self.id, self.slug))
 
     class Meta:
-        ordering = ['key']
+        ordering = ['name']
         permissions = (
             ('organization_admin', 'Administer organizations'),
             ('edit_all_organization', 'Edit all organizations'),
@@ -119,7 +115,7 @@ class Profile(models.Model):
 
     def calculate_points(self, table=(lambda x: [pow(x, i) for i in xrange(100)])(getattr(settings, 'PP_STEP', 0.95))):
         from judge.models import Problem
-        data = (Problem.objects.filter(submission__user=self, submission__points__isnull=False, is_public=True)
+        data = (Problem.objects.filter(submission__user=self, submission__points__isnull=False, is_public=True, is_organization_private=False)
                 .annotate(max_points=Max('submission__points')).order_by('-max_points')
                 .values_list('max_points', flat=True).filter(max_points__gt=0))
         extradata = Problem.objects.filter(submission__user=self, submission__result='AC', is_public=True).values('id').distinct().count()

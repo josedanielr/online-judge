@@ -40,15 +40,16 @@ class SubmissionDetailBase(LoginRequiredMixin, TitleMixin, SubmissionMixin, Deta
     def get_object(self, queryset=None):
         submission = super(SubmissionDetailBase, self).get_object(queryset)
         profile = self.request.user.profile
+        problem = submission.problem
         if self.request.user.has_perm('judge.view_all_submission'):
             return submission
         if submission.user_id == profile.id:
             return submission
-        if submission.problem.is_editor(profile):
+        if problem.is_editor(profile):
             return submission
-        if submission.problem.is_public or submission.problem.testers.filter(id=profile.id).exists():
-            if Submission.objects.filter(user_id=profile.id, result='AC', problem__code=submission.problem.code,
-                                         points=F('problem__points')).exists():
+        if problem.is_public or problem.testers.filter(id=profile.id).exists():
+            if Submission.objects.filter(user_id=profile.id, result='AC', problem_id=problem.id,
+                                         points=problem.points).exists():
                 return submission
         raise PermissionDenied()
 
@@ -309,6 +310,7 @@ class AllUserSubmissions(ConditionalUserTabMixin, UserMixin, SubmissionsListBase
 class ProblemSubmissionsBase(SubmissionsListBase):
     show_problem = False
     dynamic_update = True
+    check_contest_in_access_check = True
 
     def get_queryset(self):
         if self.in_contest and not self.contest.contest_problems.filter(problem_id=self.problem.id).exists():
@@ -322,18 +324,16 @@ class ProblemSubmissionsBase(SubmissionsListBase):
         return format_html(u'All submissions for <a href="{1}">{0}</a>', self.problem_name,
                            reverse('problem_detail', args=[self.problem.code]))
 
-    def access_check(self, request):
-        if not self.problem.is_public:
-            user = request.user
-            if not user.is_authenticated:
-                raise Http404()
-            if self.problem.is_editor(user.profile) or self.problem.testers.filter(id=user.profile.id).exists():
-                return
-            if user.has_perm('judge.see_private_problem'):
-                return
-            if self.in_contest and self.contest.problems.filter(id=self.problem.id).exists():
-                return
+    def access_check_contest(self, request):
+        if self.in_contest and not self.contest.can_see_scoreboard(request):
             raise Http404()
+
+    def access_check(self, request):
+        if not self.problem.is_accessible_by(request.user):
+            raise Http404()
+
+        if self.check_contest_in_access_check:
+            self.access_check_contest(request)
 
     def get(self, request, *args, **kwargs):
         if 'problem' not in kwargs:
@@ -363,11 +363,23 @@ class ProblemSubmissions(ProblemSubmissionsBase):
 
 
 class UserProblemSubmissions(ConditionalUserTabMixin, UserMixin, ProblemSubmissions):
+    check_contest_in_access_check = False
+
+    @cached_property
+    def is_own(self):
+        return self.request.user.is_authenticated and self.request.user.profile == self.profile
+
+    def access_check(self, request):
+        super(UserProblemSubmissions, self).access_check(request)
+
+        if not self.is_own:
+            self.access_check_contest(request)
+
     def get_queryset(self):
         return super(UserProblemSubmissions, self).get_queryset().filter(user_id=self.profile.id)
 
     def get_title(self):
-        if self.request.user.is_authenticated and self.request.user.profile == self.profile:
+        if self.is_own:
             return _("My submissions for %(problem)s") % {'problem': self.problem_name}
         return _("%(user)s's submissions for %(problem)s") % {'user': self.username, 'problem': self.problem_name}
 
@@ -436,6 +448,8 @@ class ForceContestMixin(object):
         return self._contest
 
     def access_check(self, request):
+        super(ForceContestMixin, self).access_check(request)
+
         if not request.user.has_perm('judge.see_private_contest'):
             if not self.contest.is_public:
                 raise Http404()
