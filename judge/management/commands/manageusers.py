@@ -17,9 +17,21 @@ class Command(BaseCommand):
         else:
             letters = string.ascii_lowercase
             return ''.join(random.choice(letters) for i in range(length))
+            
+    @staticmethod
+    def set_active(users_file_name, value):
+        count = 0
+        with open(users_file_name) as file:
+            for name in file:
+                usr = User.objects.get(username=name.strip())
+                usr.is_active = value
+                usr.save()
+                count += 1
+        
+        return count
 
     def add_arguments(self, parser):
-        parser.add_argument('action', help="one of 'add', 'change_pass', or 'unactivate'")
+        parser.add_argument('action', help="one of 'add', 'change_pass', 'activate', or 'unactivate'")
         parser.add_argument('file', help='file with usernames (one per line)')
         parser.add_argument('-o', '--organization', help='organization (short name) where created user will be added')
         parser.add_argument('-p', '--pass_file', help=('file for reading passwords (one per line), if not present'
@@ -90,14 +102,11 @@ class Command(BaseCommand):
                     usr.save()
                     count += 1
             self.stdout.write(self.style.SUCCESS('Successfully changed passwords of %d users' % count))
+        elif action == 'activate':
+            count = Command.set_active(users_file_name, True)
+            self.stdout.write(self.style.SUCCESS('Successfully activated %d users' % count))
         elif action == 'unactivate':
-            count = 0
-            with open(users_file_name) as file:
-                for name in file:
-                    usr = User.objects.get(username=name.strip())
-                    usr.is_active = False
-                    usr.save()
-                    count += 1
+            count = Command.set_active(users_file_name, False)
             self.stdout.write(self.style.SUCCESS('Successfully unactivated %d users' % count))
         else:
             self.stdout.write(self.style.ERROR('Unrecognized action "%s"' % action))
