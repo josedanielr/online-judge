@@ -1,10 +1,15 @@
 import json
-import urllib2
+#import urllib2
+import os
+
 from contextlib import closing
 
 from ua_parser import user_agent_parser
 
-with closing(urllib2.urlopen('file:///judge/static/data.json')) as f:
+dir = os.path.abspath(os.path.dirname(__file__))
+data_json = os.path.join(dir, 'data.json')
+
+with closing(open(data_json)) as f:
     _SUPPORT_DATA = json.load(f)['data']
 
 SUPPORT = 'y'

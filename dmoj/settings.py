@@ -348,10 +348,19 @@ STATICFILES_FINDERS = (
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'resources'),
 ]
+
 STATIC_URL = '/static/'
 
+STATIC_ROOT = DMOJ_RESOURCES
+
+
 # Define a cache
-CACHES = {}
+CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+            'LOCATION': 'dmoj_cache_table',
+        }
+    }
 
 # Authentication
 AUTHENTICATION_BACKENDS = (
