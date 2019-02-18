@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand
 from django.db.models import F
 
-from judge.models import Problem, ProblemGroup, ProblemType, ContestParticipation, ContestSubmission
+from judge.models import ContestSubmission
 
 
 class Command(BaseCommand):
@@ -19,14 +19,13 @@ class Command(BaseCommand):
                                      cod_problem=F('submission__problem__code'), source=F('submission__source')).values(
             'user', 'cod_problem', 'source', 'points').order_by('-points')
 
-
         unique = 0
         user_points = {}
         for t in cont_sub:
-            if t.user not in user_points:
-                user_points[t.user] = t.points
+            if t['user'] not in user_points:
+                user_points[t['user']] = t['points']
 
-            if t.points == user_points[t.user]:
+            if t['points'] == user_points[t['user']]:
                 unique += 1
 
         print(unique)
