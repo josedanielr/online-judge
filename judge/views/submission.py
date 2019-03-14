@@ -2,6 +2,7 @@ import json
 from operator import attrgetter
 
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist, PermissionDenied, ImproperlyConfigured
 from django.core.urlresolvers import reverse
 from django.db.models import F, Prefetch
@@ -25,7 +26,7 @@ from judge.utils.views import TitleMixin, DiggPaginatorMixin
 
 def submission_related(queryset):
     return queryset.select_related('user__user', 'problem', 'language') \
-        .only('id', 'user__user__username', 'user__name', 'user__display_rank', 'user__rating', 'problem__name',
+        .only('id', 'user__user__username', 'user__display_rank', 'user__rating', 'problem__name',
               'problem__code', 'problem__is_public', 'language__short_name', 'language__key', 'date', 'time', 'memory',
               'points', 'result', 'status', 'case_points', 'case_total', 'current_testcase')
 
@@ -162,6 +163,12 @@ class SubmissionsListBase(DiggPaginatorMixin, TitleMixin, ListView):
     first_page_href = None
 
     def get_result_data(self):
+        result = self._get_result_data()
+        for category in result['categories']:
+            category['name'] = _(category['name'])
+        return result
+
+    def _get_result_data(self):
         return get_result_data(self.get_queryset().order_by())
 
     def access_check(self, request):
@@ -399,6 +406,7 @@ class UserProblemSubmissions(ConditionalUserTabMixin, UserMixin, ProblemSubmissi
 
 
 def single_submission(request, submission_id, show_problem=True):
+    request.no_profile_update = True
     authenticated = request.user.is_authenticated
     submission = get_object_or_404(submission_related(Submission.objects.all()), id=int(submission_id))
 
@@ -417,6 +425,7 @@ def single_submission(request, submission_id, show_problem=True):
 
 
 def single_submission_query(request):
+    request.no_profile_update = True
     if 'id' not in request.GET or not request.GET['id'].isdigit():
         return HttpResponseBadRequest()
     try:
@@ -427,6 +436,8 @@ def single_submission_query(request):
 
 
 class AllSubmissions(SubmissionsListBase):
+    stats_update_interval = 3600
+
     def get_my_submissions_page(self):
         if self.request.user.is_authenticated:
             return reverse('all_user_submissions', kwargs={'user': self.request.user.username})
@@ -435,7 +446,20 @@ class AllSubmissions(SubmissionsListBase):
         context = super(AllSubmissions, self).get_context_data(**kwargs)
         context['dynamic_update'] = context['page_obj'].number == 1
         context['last_msg'] = event.last()
+        context['stats_update_interval'] = self.stats_update_interval
         return context
+
+    def _get_result_data(self):
+        if self.in_contest or self.selected_languages or self.selected_statuses:
+            return super(AllSubmissions, self)._get_result_data()
+
+        key = 'global_submission_result_data'
+        result = cache.get(key)
+        if result:
+            return result
+        result = super(AllSubmissions, self)._get_result_data()
+        cache.set(key, result, self.stats_update_interval)
+        return result
 
 
 class ForceContestMixin(object):

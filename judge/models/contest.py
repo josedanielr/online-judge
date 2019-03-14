@@ -93,6 +93,8 @@ class Contest(models.Model):
     access_code = models.CharField(verbose_name=_('access code'), blank=True, default='', max_length=255,
                                    help_text=_('An optional code to prompt contestants before they are allowed '
                                                'to join the contest. Leave it blank to disable.'))
+    banned_users = models.ManyToManyField(Profile, verbose_name=_('personae non gratae'), blank=True,
+                                          help_text=_('Bans the selected users from joining this contest.'))
 
     def clean(self):
         if self.start_time >= self.end_time:
@@ -218,6 +220,10 @@ class ContestParticipation(models.Model):
     recalculate_score.alters_data = True
 
     @property
+    def live(self):
+        return self.virtual == 0
+
+    @property
     def spectate(self):
         return self.virtual == -1
 
@@ -270,10 +276,10 @@ class ContestParticipation(models.Model):
 
     def __unicode__(self):
         if self.spectate:
-            return ugettext('%s spectating in %s') % (self.user.long_display_name, self.contest.name)
+            return ugettext('%s spectating in %s') % (self.user.username, self.contest.name)
         if self.virtual:
-            return ugettext('%s in %s, v%d') % (self.user.long_display_name, self.contest.name, self.virtual)
-        return ugettext('%s in %s') % (self.user.long_display_name, self.contest.name)
+            return ugettext('%s in %s, v%d') % (self.user.username, self.contest.name, self.virtual)
+        return ugettext('%s in %s') % (self.user.username, self.contest.name)
 
     class Meta:
         verbose_name = _('contest participation')

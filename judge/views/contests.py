@@ -72,12 +72,12 @@ class ContestList(TitleMixin, ContestListMixin, ListView):
 
     def get_queryset(self):
         return super(ContestList, self).get_queryset() \
-            .order_by('-start_time', 'key').prefetch_related('tags', 'organizations')
+            .order_by('-start_time', 'key').prefetch_related('tags', 'organizations', 'organizers')
 
     def get_context_data(self, **kwargs):
         context = super(ContestList, self).get_context_data(**kwargs)
         now = timezone.now()
-        past, present, future = [], [], []
+        past, present, active, future = [], [], [], []
         for contest in self.get_queryset():
             if contest.end_time < now:
                 past.append(contest)
@@ -85,7 +85,17 @@ class ContestList(TitleMixin, ContestListMixin, ListView):
                 future.append(contest)
             else:
                 present.append(contest)
+
+        if self.request.user.is_authenticated:
+            for participation in ContestParticipation.objects.filter(virtual=0, user=self.request.profile, contest_id__in=present) \
+                                                             .select_related('contest').prefetch_related('contest__organizers'):
+                if not participation.ended:
+                    active.append(participation)
+                    present.remove(participation.contest)
+
+        active.sort(key=attrgetter('end_time'))
         future.sort(key=attrgetter('start_time'))
+        context['active_participations'] = active
         context['current_contests'] = present
         context['past_contests'] = past
         context['future_contests'] = future
@@ -243,6 +253,11 @@ class ContestJoin(LoginRequiredMixin, ContestMixin, BaseDetailView):
             return generic_message(request, _('Already in contest'),
                                    _('You are already in a contest: "%s".') % profile.current_contest.contest.name)
 
+        if not request.user.is_superuser and contest.banned_users.filter(id=profile.id).exists():
+             return generic_message(request, _('Banned from joining'),
+                                       _('You have been declared persona non grata for this contest. '
+                                         'You are permanently barred from joining this contest.'))
+
         if contest.ended:
             while True:
                 virtual_id = (ContestParticipation.objects.filter(contest=contest, user=profile)
@@ -327,7 +342,7 @@ class ContestCalendar(TitleMixin, ContestListMixin, TemplateView):
             self.year = int(kwargs['year'])
             self.month = int(kwargs['month'])
         except (KeyError, ValueError):
-            raise ImproperlyConfigured(_('ContestCalender requires integer year and month'))
+            raise ImproperlyConfigured(_('ContestCalendar requires integer year and month'))
         self.today = timezone.now().date()
         return self.render()
 
@@ -410,7 +425,7 @@ class CachedContestCalendar(ContestCalendar):
 
 
 class ContestRankingProfile(namedtuple(
-    'ContestRankingProfile', 'id user display_rank long_display_name points cumtime problems rating organization '
+    'ContestRankingProfile', 'id user display_rank username points cumtime problems rating organization '
                              'participation participation_rating')):
     @cached_property
     def css_class(self):
@@ -426,7 +441,7 @@ def make_contest_ranking_profile(participation, problems):
         id=user.id,
         user=user.user,
         display_rank=user.display_rank,
-        long_display_name=user.long_display_name,
+        username=user.username,
         points=participation.score,
         cumtime=participation.cumtime,
         organization=user.organization,
@@ -478,7 +493,7 @@ def base_contest_ranking_list(contest, problems, queryset, for_user=None):
 
 
 def contest_ranking_list(contest, problems):
-    return base_contest_ranking_list(contest, problems, contest.users.filter(virtual=0)
+    return base_contest_ranking_list(contest, problems, contest.users.filter(virtual=0, user__is_unlisted=False)
                                                                      .prefetch_related('user__organizations')
                                                                      .order_by('-score', 'cumtime'))
 

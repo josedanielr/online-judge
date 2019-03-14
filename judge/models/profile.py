@@ -75,7 +75,6 @@ class Organization(models.Model):
 
 class Profile(models.Model):
     user = models.OneToOneField(User, verbose_name=_('user associated'))
-    name = models.CharField(max_length=50, verbose_name=_('display name'), null=True, blank=True)
     about = models.TextField(verbose_name=_('self-description'), null=True, blank=True)
     timezone = models.CharField(max_length=50, verbose_name=_('location'), choices=TIMEZONE,
                                 default=getattr(settings, 'DEFAULT_USER_TIME_ZONE', 'America/Toronto'))
@@ -92,6 +91,8 @@ class Profile(models.Model):
                                     choices=(('user', 'Normal User'), ('setter', 'Problem Setter'), ('admin', 'Admin')))
     mute = models.BooleanField(verbose_name=_('comment mute'), help_text=_('Some users are at their best when silent.'),
                                default=False)
+    is_unlisted = models.BooleanField(verbose_name=_('unlisted user'), help_text=_('User will not be ranked.'),
+                                      default=False)
     rating = models.IntegerField(null=True, default=None)
     user_script = models.TextField(verbose_name=_('user script'), default='', blank=True, max_length=65536,
                                    help_text=_('User-defined JavaScript for site customization.'))
@@ -106,12 +107,18 @@ class Profile(models.Model):
                                       help_text=_('32 character base32-encoded key for TOTP'),
                                       validators=[RegexValidator('^$|^[A-Z2-7]{32}$',
                                                                  _('TOTP key must be empty or base32'))])
+    notes = models.TextField(verbose_name=_('internal notes'), help_text=_('Notes for administrators regarding this user.'),
+                             null=True, blank=True)
 
     @cached_property
     def organization(self):
         # We do this to take advantage of prefetch_related
         orgs = self.organizations.all()
         return orgs[0] if orgs else None
+
+    @cached_property
+    def username(self):
+        return self.user.username
 
     def calculate_points(self, table=(lambda x: [pow(x, i) for i in xrange(100)])(getattr(settings, 'PP_STEP', 0.95))):
         from judge.models import Problem
@@ -132,20 +139,6 @@ class Profile(models.Model):
         return points
 
     calculate_points.alters_data = True
-
-    @cached_property
-    def display_name(self):
-        if self.name:
-            return self.name
-        return self.user.username
-
-    @cached_property
-    def long_display_name(self):
-        if self.name:
-            return pgettext('user display name', '%(username)s (%(display)s)') % {
-                'username': self.user.username, 'display': self.name
-            }
-        return self.user.username
 
     def remove_contest(self):
         self.current_contest = None

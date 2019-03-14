@@ -1,6 +1,7 @@
 from itertools import chain
 
 from django import forms
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.cache import cache
@@ -90,10 +91,13 @@ class OrganizationUsers(OrganizationDetailView):
         context['title'] = _('%s Members') % self.object.name
         context['users'] = ranker(chain(*[
             i.select_related('user').defer('about') for i in (
-                self.object.members.filter(submission__points__gt=0).order_by('-performance_points')
+                self.object.members.filter(submission__points__gt=0, is_unlisted=False)
+                    .order_by('-performance_points')
                     .annotate(problems=Count('submission__problem', distinct=True)),
-                self.object.members.annotate(problems=Max('submission__points')).filter(problems=0),
-                self.object.members.annotate(problems=Count('submission__problem', distinct=True)).filter(problems=0),
+                self.object.members.filter(is_unlisted=False)
+                                   .annotate(problems=Max('submission__points')).filter(problems=0),
+                self.object.members.filter(is_unlisted=False)
+                                   .annotate(problems=Count('submission__problem', distinct=True)).filter(problems=0),
             )
         ]))
         context['partial'] = True
@@ -118,8 +122,14 @@ class JoinOrganization(OrganizationMembershipChange):
     def handle(self, request, org, profile):
         if profile.organizations.filter(id=org.id).exists():
             return generic_message(request, _('Joining organization'), _('You are already in the organization.'))
+
         if not org.is_open:
             return generic_message(request, _('Joining organization'), _('This organization is not open.'))
+
+        max_orgs = getattr(settings, 'MAX_USER_ORGANIZATION_COUNT', 3)
+        if profile.organizations.filter(is_open=True).count() >= max_orgs:
+            return generic_message(request, _('Joining organization'), _('You may not be part of more than {count} public organizations.').format(count=max_orgs))
+
         profile.organizations.add(org)
         profile.save()
         cache.delete(make_template_fragment_key('org_member_count', (org.id,)))

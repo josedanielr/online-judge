@@ -1,6 +1,7 @@
 from functools import partial
 from operator import itemgetter
 
+from django.conf import settings
 from django.conf.urls import url
 from django.contrib import admin, messages
 from django.core.cache import cache
@@ -98,14 +99,14 @@ class SubmissionAdmin(admin.ModelAdmin):
     list_display = ('id', 'problem_code', 'problem_name', 'user_column', 'execution_time', 'pretty_memory',
                     'points', 'language_column', 'status', 'result', 'judge_column')
     list_filter = ('language', SubmissionStatusFilter, SubmissionResultFilter)
-    search_fields = ('problem__code', 'problem__name', 'user__user__username', 'user__name')
+    search_fields = ('problem__code', 'problem__name', 'user__user__username')
     actions_on_top = True
     actions_on_bottom = True
     inlines = [SubmissionTestCaseInline, ContestSubmissionInline]
 
     def get_queryset(self, request):
         queryset = Submission.objects.select_related('problem', 'user__user', 'language').only(
-            'problem__code', 'problem__name', 'user__user__username', 'user__name', 'language__name',
+            'problem__code', 'problem__name', 'user__user__username', 'language__name',
             'time', 'memory', 'points', 'status', 'result'
         )
         use_straight_join(queryset)
@@ -130,7 +131,8 @@ class SubmissionAdmin(admin.ModelAdmin):
                               level=messages.ERROR)
             return
         queryset = queryset.order_by('id')
-        if queryset.count() > 10 and not request.user.has_perm('judge.rejudge_submission_lot'):
+        if not request.user.has_perm('judge.rejudge_submission_lot') and \
+                queryset.count() > getattr(settings, 'REJUDGE_SUBMISSION_LIMIT', 10):
             self.message_user(request, ugettext('You do not have the permission to rejudge THAT many submissions.'),
                               level=messages.ERROR)
             return
@@ -192,9 +194,7 @@ class SubmissionAdmin(admin.ModelAdmin):
     problem_name.admin_order_field = 'problem__name'
 
     def user_column(self, obj):
-        return format_html(u'<span title="{display}">{username}</span>',
-                           username=obj.user.user.username,
-                           display=obj.user.name)
+        return obj.user.user.username
     user_column.admin_order_field = 'user__user__username'
     user_column.short_description = _('User')
 

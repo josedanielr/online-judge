@@ -42,13 +42,13 @@ class TimezoneFilter(admin.SimpleListFilter):
 
 
 class ProfileAdmin(VersionAdmin):
-    fields = ('user', 'name', 'display_rank', 'about', 'organizations', 'timezone', 'language', 'ace_theme',
-              'math_engine', 'last_access', 'ip', 'mute', 'is_totp_enabled', 'user_script', 'current_contest')
+    fields = ('user', 'display_rank', 'about', 'organizations', 'timezone', 'language', 'ace_theme',
+              'math_engine', 'last_access', 'ip', 'mute', 'is_unlisted', 'notes', 'is_totp_enabled', 'user_script', 'current_contest')
     readonly_fields = ('user',)
     list_display = ('admin_user_admin', 'email', 'is_totp_enabled', 'timezone_full',
                     'date_joined', 'last_access', 'ip', 'show_public')
     ordering = ('user__username',)
-    search_fields = ('user__username', 'name', 'ip', 'user__email')
+    search_fields = ('user__username', 'ip', 'user__email')
     list_filter = ('language', TimezoneFilter)
     actions = ('recalculate_points',)
     actions_on_top = True
@@ -78,7 +78,7 @@ class ProfileAdmin(VersionAdmin):
     show_public.short_description = ''
 
     def admin_user_admin(self, obj):
-        return obj.long_display_name
+        return obj.username
     admin_user_admin.admin_order_field = 'user__username'
     admin_user_admin.short_description = _('User')
 
