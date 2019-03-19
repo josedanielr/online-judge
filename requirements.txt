@@ -24,7 +24,8 @@ requests
 django-fernet-fields
 pyotp
 qrcode[pil]
-django_select2
+jsonfield
+pymossdjango_select2
 websocket-client
 websocket
 pymysql

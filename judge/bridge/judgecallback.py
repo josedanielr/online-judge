@@ -232,15 +232,7 @@ class DjangoJudgeHandler(JudgeHandler):
         submission.user.calculate_points()
         problem._updating_stats_only = True
         problem.update_stats()
-
-        if hasattr(submission, 'contest'):
-            contest = submission.contest
-            contest.points = round(points / total * contest.problem.points if total > 0 else 0, 3)
-            if not contest.problem.partial and contest.points != contest.problem.points:
-                contest.points = 0
-            contest.save()
-            submission.contest.participation.recalculate_score()
-            submission.contest.participation.update_cumtime()
+        submission.update_contest()
 
         finished_submission(submission)
 
@@ -350,15 +342,16 @@ class DjangoJudgeHandler(JudgeHandler):
         test_case.points = packet['points']
         test_case.total = packet['total-points']
         test_case.batch = self.batch_id if self.in_batch else None
-        test_case.feedback = (packet.get('feedback', None) or '')[:max_feedback]
+        test_case.feedback = (packet.get('feedback') or '')[:max_feedback]
+        test_case.extended_feedback = packet.get('extended-feedback') or ''
         test_case.output = packet['output']
         test_case.save()
 
         json_log.info(self._make_json_log(
             packet, action='test-case', case=test_case.case, batch=test_case.batch,
             time=test_case.time, memory=test_case.memory, feedback=test_case.feedback,
-            output=test_case.output, points=test_case.points, total=test_case.total,
-            status=test_case.status
+            extended_feedback=test_case.extended_feedback, output=test_case.output,
+            points=test_case.points, total=test_case.total, status=test_case.status
         ))
 
         do_post = True

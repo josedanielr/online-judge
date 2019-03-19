@@ -119,6 +119,22 @@ class Submission(models.Model):
 
     abort.alters_data = True
 
+    def update_contest(self):
+        try:
+            contest = self.contest
+        except AttributeError:
+            return
+
+        contest_problem = contest.problem
+        contest.points = round(self.case_points / self.case_total * contest_problem.points
+                               if self.case_total > 0 else 0, 3)
+        if not contest_problem.partial and contest.points != contest_problem.points:
+            contest.points = 0
+        contest.save()
+        contest.participation.recompute_results()
+
+    update_contest.alters_data = True
+
     @property
     def is_graded(self):
         return self.status not in ('QU', 'P', 'G')
@@ -175,6 +191,7 @@ class SubmissionTestCase(models.Model):
     total = models.FloatField(verbose_name=_('points possible'), null=True)
     batch = models.IntegerField(verbose_name=_('batch number'), null=True)
     feedback = models.CharField(max_length=50, verbose_name=_('judging feedback'), blank=True)
+    extended_feedback = models.TextField(verbose_name=_('extended judging feedback'), blank=True)
     output = models.TextField(verbose_name=_('program output'), blank=True)
 
     @property
