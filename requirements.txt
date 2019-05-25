@@ -1,4 +1,4 @@
-Django==1.11.16
+Django>=1.11,<2
 django_compressor
 django-mptt>=0.8.4,<0.9
 http://nexus.uclv.edu.cu/repository/github/DMOJ/django-pagedown/archive/master.zip#egg=django-pagedown
