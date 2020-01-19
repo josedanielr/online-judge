@@ -1,4 +1,5 @@
-FROM python:3.8-alpine
+# FROM python:3.8-alpine
+FROM python:3.8
 
 ENV PYHTONUNBUFFERED 1
 
@@ -16,11 +17,11 @@ RUN pip install --upgrade pip \
     && pip install uwsgi \
     && pip install -r requirements.txt
 
-# RUN ./make_style.sh
-
 COPY .docker/site/local_settings.py ./dmoj/
 
-RUN python manage.py migrate
+RUN python manage.py migrate \
+    && python3 manage.py loaddata navbar \
+    && python3 manage.py loaddata language_small
 
 ENTRYPOINT ./.docker/site/boot.sh
 
