@@ -10,7 +10,7 @@ https://docs.djangoproject.com/en/1.11/ref/settings/
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 import os
-import re
+import tempfile
 
 from django.utils.translation import ugettext_lazy as _
 from django_jinja.builtins import DEFAULT_EXTENSIONS
@@ -32,8 +32,104 @@ ALLOWED_HOSTS = []
 SITE_ID = 1
 SITE_NAME = 'DMOJ'
 SITE_LONG_NAME = 'DMOJ: Modern Online Judge'
+SITE_ADMIN_EMAIL = False
+
+DMOJ_REQUIRE_STAFF_2FA = True
+
+# Set to 1 to use HTTPS if request was made to https://
+# Set to 2 to always use HTTPS for links
+# Set to 0 to always use HTTP for links
+DMOJ_SSL = 0
+
+# Refer to dmoj.ca/post/103-point-system-rework
+DMOJ_PP_STEP = 0.95
+DMOJ_PP_ENTRIES = 100
+DMOJ_PP_BONUS_FUNCTION = lambda n: 300 * (1 - 0.997 ** n)  # noqa: E731
+
+NODEJS = '/usr/bin/node'
+EXIFTOOL = '/usr/bin/exiftool'
+ACE_URL = '//cdnjs.cloudflare.com/ajax/libs/ace/1.1.3'
+SELECT2_JS_URL = '//cdnjs.cloudflare.com/ajax/libs/select2/4.0.3/js/select2.min.js'
+DEFAULT_SELECT2_CSS = '//cdnjs.cloudflare.com/ajax/libs/select2/4.0.3/css/select2.min.css'
+
+DMOJ_CAMO_URL = None
+DMOJ_CAMO_KEY = None
+DMOJ_CAMO_HTTPS = False
+DMOJ_CAMO_EXCLUDE = ()
+DMOJ_PROBLEM_DATA_ROOT = None
+DMOJ_PROBLEM_MIN_TIME_LIMIT = 0  # seconds
+DMOJ_PROBLEM_MAX_TIME_LIMIT = 60  # seconds
+DMOJ_PROBLEM_MIN_MEMORY_LIMIT = 0  # kilobytes
+DMOJ_PROBLEM_MAX_MEMORY_LIMIT = 1048576  # kilobytes
+DMOJ_PROBLEM_MIN_PROBLEM_POINTS = 0
+DMOJ_RATING_COLORS = False
+DMOJ_EMAIL_THROTTLING = (10, 60)
+DMOJ_STATS_LANGUAGE_THRESHOLD = 10
+DMOJ_SUBMISSIONS_REJUDGE_LIMIT = 10
+# Maximum number of submissions a single user can queue without the `spam_submission` permission
+DMOJ_SUBMISSION_LIMIT = 2
+DMOJ_BLOG_NEW_PROBLEM_COUNT = 7
+DMOJ_BLOG_RECENTLY_ATTEMPTED_PROBLEMS_COUNT = 7
+DMOJ_TOTP_TOLERANCE_HALF_MINUTES = 1
+DMOJ_USER_MAX_ORGANIZATION_COUNT = 3
+DMOJ_COMMENT_VOTE_HIDE_THRESHOLD = -5
+DMOJ_PDF_PROBLEM_CACHE = ''
+DMOJ_PDF_PROBLEM_TEMP_DIR = tempfile.gettempdir()
+DMOJ_STATS_SUBMISSION_RESULT_COLORS = {
+    'TLE': '#a3bcbd',
+    'AC': '#00a92a',
+    'WA': '#ed4420',
+    'CE': '#42586d',
+    'ERR': '#ffa71c',
+}
+
+MARKDOWN_STYLES = {}
+MARKDOWN_DEFAULT_STYLE = {}
+
+MATHOID_URL = False
+MATHOID_GZIP = False
+MATHOID_MML_CACHE = None
+MATHOID_CSS_CACHE = 'default'
+MATHOID_DEFAULT_TYPE = 'auto'
+MATHOID_MML_CACHE_TTL = 86400
+MATHOID_CACHE_ROOT = ''
+MATHOID_CACHE_URL = False
+
+TEXOID_GZIP = False
+TEXOID_META_CACHE = 'default'
+TEXOID_META_CACHE_TTL = 86400
+DMOJ_NEWSLETTER_ID_ON_REGISTER = None
+
+BAD_MAIL_PROVIDERS = ()
+BAD_MAIL_PROVIDER_REGEX = ()
+NOFOLLOW_EXCLUDED = set()
+
+TIMEZONE_BG = None
+TIMEZONE_MAP = None
+TIMEZONE_DETECT_BACKEND = None
+
+TERMS_OF_SERVICE_URL = None
+DEFAULT_USER_LANGUAGE = 'PY3'
+
+PHANTOMJS = ''
+PHANTOMJS_PDF_ZOOM = 0.75
+PHANTOMJS_PDF_TIMEOUT = 5.0
+PHANTOMJS_PAPER_SIZE = 'Letter'
+
+SLIMERJS = ''
+SLIMERJS_PDF_ZOOM = 0.75
+SLIMERJS_FIREFOX_PATH = ''
+SLIMERJS_PAPER_SIZE = 'Letter'
+
+PUPPETEER_MODULE = '/usr/lib/node_modules/puppeteer'
+PUPPETEER_PAPER_SIZE = 'Letter'
 
 PYGMENT_THEME = 'pygment-github.css'
+INLINE_JQUERY = True
+INLINE_FONTAWESOME = True
+JQUERY_JS = '//ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js'
+FONTAWESOME_CSS = '//maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css'
+DMOJ_CANONICAL = ''
 
 # Application definition
 
@@ -113,7 +209,7 @@ else:
             'dashboard': {
                 'breadcrumbs': True,
             },
-        }
+        },
     }
 
 INSTALLED_APPS += (
@@ -143,9 +239,10 @@ INSTALLED_APPS += (
 )
 
 MIDDLEWARE = (
+    'judge.middleware.ShortCircuitMiddleware',
+    'django.middleware.common.CommonMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.locale.LocaleMiddleware',
-    'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'judge.middleware.DMOJLoginMiddleware',
@@ -203,6 +300,7 @@ TEMPLATES = [
                 'django.template.context_processors.tz',
                 'django.template.context_processors.i18n',
                 'django.template.context_processors.request',
+                'django.contrib.messages.context_processors.messages',
                 'judge.template_context.comet_location',
                 'judge.template_context.get_resource',
                 'judge.template_context.general_info',
@@ -239,7 +337,7 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
             ],
         },
-    }
+    },
 ]
 
 LOCALE_PATHS = [
@@ -253,13 +351,16 @@ LANGUAGES = [
     ('fr', _('French')),
     ('hr', _('Croatian')),
     ('hu', _('Hungarian')),
+    ('ja', _('Japanese')),
     ('ko', _('Korean')),
+    ('pt', _('Brazilian Portuguese')),
     ('ro', _('Romanian')),
     ('ru', _('Russian')),
     ('sr-latn', _('Serbian (Latin)')),
     ('tr', _('Turkish')),
     ('vi', _('Vietnamese')),
     ('zh-hans', _('Simplified Chinese')),
+    ('zh-hant', _('Traditional Chinese')),
 ]
 
 MARKDOWN_ADMIN_EDITABLE_STYLE = {
@@ -305,13 +406,14 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
-    }
+    },
 }
 
 ENABLE_FTS = False
 
 # Bridged configuration
 BRIDGED_JUDGE_ADDRESS = [('localhost', 9999)]
+BRIDGED_JUDGE_PROXIES = None
 BRIDGED_DJANGO_ADDRESS = [('localhost', 9998)]
 BRIDGED_DJANGO_CONNECT = None
 
@@ -321,6 +423,7 @@ EVENT_DAEMON_POST = 'ws://localhost:9997/'
 EVENT_DAEMON_GET = 'ws://localhost:9996/'
 EVENT_DAEMON_POLL = '/channels/'
 EVENT_DAEMON_KEY = None
+EVENT_DAEMON_AMQP_EXCHANGE = 'dmoj-events'
 EVENT_DAEMON_SUBMISSION_KEY = '6Sdmkx^%pk@GsifDfXcwX*Y7LRF%RGT8vmFpSxFBT$fwS7trc8raWfN#CSfQuKApx&$B#Gh2L7p%W!Ww'
 
 # Internationalization
@@ -365,7 +468,6 @@ CACHES = {
 # Authentication
 AUTHENTICATION_BACKENDS = (
     'social_core.backends.google.GoogleOAuth2',
-    'social_core.backends.dropbox.DropboxOAuth2',
     'social_core.backends.facebook.FacebookOAuth2',
     'judge.social_auth.GitHubSecureEmailOAuth2',
     'django.contrib.auth.backends.ModelBackend',
@@ -384,7 +486,7 @@ SOCIAL_AUTH_PIPELINE = (
     'judge.social_auth.make_profile',
     'social_core.pipeline.social_auth.associate_user',
     'social_core.pipeline.social_auth.load_extra_data',
-    'social_core.pipeline.user.user_details'
+    'social_core.pipeline.user.user_details',
 )
 
 SOCIAL_AUTH_GITHUB_SECURE_SCOPE = ['user:email']
@@ -394,8 +496,12 @@ SOCIAL_AUTH_SLUGIFY_FUNCTION = 'judge.social_auth.slugify_username'
 
 JUDGE_AMQP_PATH = None
 
+MOSS_API_KEY = None
+
+CELERY_WORKER_HIJACK_ROOT_LOGGER = False
+
 try:
     with open(os.path.join(os.path.dirname(__file__), 'local_settings.py')) as f:
-        exec f in globals()
+        exec(f.read(), globals())
 except IOError:
     pass

@@ -1,6 +1,6 @@
 import re
 
-from jinja2 import nodes, Markup
+from jinja2 import Markup, nodes
 from jinja2.ext import Extension
 
 
@@ -18,7 +18,7 @@ class SpacelessExtension(Extension):
     tags = {'spaceless'}
 
     def parse(self, parser):
-        lineno = parser.stream.next().lineno
+        lineno = next(parser.stream).lineno
         body = parser.parse_statements(['name:endspaceless'], drop_needle=True)
         return nodes.CallBlock(
             self.call_method('_strip_spaces', [], [], None, None),

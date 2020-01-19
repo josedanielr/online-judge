@@ -1,9 +1,7 @@
-from __future__ import absolute_import
-
 from django.contrib.admin import widgets as admin_widgets
 from django.forms.utils import flatatt
 from django.template.loader import get_template
-from django.utils.encoding import force_unicode
+from django.utils.encoding import force_text
 from django.utils.html import conditional_escape
 
 from judge.widgets.mixins import CompressorWidgetMixin
@@ -23,6 +21,10 @@ except ImportError:
     HeavyPreviewAdminPageDownWidget = None
 else:
     class PagedownWidget(CompressorWidgetMixin, OldPagedownWidget):
+        # The goal here is to compress all the pagedown JS into one file.
+        # We do not want any further compress down the chain, because
+        # 1. we'll creating multiple large JS files to download.
+        # 2. this is not a problem here because all the pagedown JS files will be used together.
         compress_js = True
 
         def __init__(self, *args, **kwargs):
@@ -31,29 +33,21 @@ else:
 
 
     class AdminPagedownWidget(PagedownWidget, admin_widgets.AdminTextareaWidget):
-        def _media(self):
-            media = super(AdminPagedownWidget, self)._media()
-            media.add_css({'all': [
+        class Media:
+            css = {'all': [
                 'content-description.css',
                 'admin/css/pagedown.css',
-            ]})
-            media.add_js(['admin/js/pagedown.js'])
-            return media
-
-        media = property(_media)
+            ]}
+            js = ['admin/js/pagedown.js']
 
 
     class MathJaxPagedownWidget(PagedownWidget):
-        def _media(self):
-            media = super(MathJaxPagedownWidget, self)._media()
-            media.add_js([
+        class Media:
+            js = [
                 'mathjax_config.js',
                 '/lib/MathJax/MathJax.js?config=TeX-AMS-MML_HTMLorMML',
                 'pagedown_math.js',
-            ])
-            return media
-
-        media = property(_media)
+            ]
 
 
     class MathJaxAdminPagedownWidget(AdminPagedownWidget, MathJaxPagedownWidget):
@@ -80,7 +74,7 @@ else:
         def get_template_context(self, attrs, value):
             return {
                 'attrs': flatatt(attrs),
-                'body': conditional_escape(force_unicode(value)),
+                'body': conditional_escape(force_text(value)),
                 'id': attrs['id'],
                 'show_preview': self.show_preview,
                 'preview_url': self.preview_url,
@@ -88,22 +82,15 @@ else:
                 'extra_classes': 'dmmd-no-button' if self.hide_preview_button else None,
             }
 
-        def _media(self):
-            media = super(HeavyPreviewPageDownWidget, self)._media()
-            media.add_css({'all': ['dmmd-preview.css']})
-            media.add_js(['dmmd-preview.js'])
-            return media
+        class Media:
+            css = {'all': ['dmmd-preview.css']}
+            js = ['dmmd-preview.js']
 
-        media = property(_media)
 
     class HeavyPreviewAdminPageDownWidget(AdminPagedownWidget, HeavyPreviewPageDownWidget):
-        def _media(self):
-            media = super(HeavyPreviewAdminPageDownWidget, self)._media()
-            media.add_css({'all': [
+        class Media:
+            css = {'all': [
                 'pygment-github.css',
                 'table.css',
                 'ranks.css',
-            ]})
-            return media
-
-        media = property(_media)
+            ]}

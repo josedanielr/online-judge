@@ -1,14 +1,15 @@
 from django.contrib import admin
-from django.core.urlresolvers import reverse_lazy
+from django.contrib.auth.models import User
 from django.forms import ModelForm
+from django.urls import NoReverseMatch, reverse, reverse_lazy
 from django.utils.html import format_html
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from mptt.admin import DraggableMPTTAdmin
 from reversion.admin import VersionAdmin
 
 from judge.dblock import LockModel
 from judge.models import NavigationBar
-from judge.widgets import HeavySelect2MultipleWidget, HeavyPreviewAdminPageDownWidget, HeavySelect2Widget
+from judge.widgets import AdminHeavySelect2MultipleWidget, AdminHeavySelect2Widget, HeavyPreviewAdminPageDownWidget
 
 
 class NavigationBarAdmin(DraggableMPTTAdmin):
@@ -47,7 +48,7 @@ class BlogPostForm(ModelForm):
 
     class Meta:
         widgets = {
-            'authors': HeavySelect2MultipleWidget(data_view='profile_select2', attrs={'style': 'width: 100%'}),
+            'authors': AdminHeavySelect2MultipleWidget(data_view='profile_select2', attrs={'style': 'width: 100%'}),
         }
 
         if HeavyPreviewAdminPageDownWidget is not None:
@@ -58,7 +59,7 @@ class BlogPostForm(ModelForm):
 class BlogPostAdmin(VersionAdmin):
     fieldsets = (
         (None, {'fields': ('title', 'slug', 'authors', 'visible', 'sticky', 'publish_on')}),
-        (_('Content'), {'fields': ('content', 'og_image',)}),
+        (_('Content'), {'fields': ('content', 'og_image')}),
         (_('Summary'), {'classes': ('collapse',), 'fields': ('summary',)}),
     )
     prepopulated_fields = {'slug': ('title',)}
@@ -72,7 +73,7 @@ class BlogPostAdmin(VersionAdmin):
         return (request.user.has_perm('judge.edit_all_post') or
                 request.user.has_perm('judge.change_blogpost') and (
                     obj is None or
-                    obj.authors.filter(id=request.user.profile.id).exists()))
+                    obj.authors.filter(id=request.profile.id).exists()))
 
 
 class SolutionForm(ModelForm):
@@ -82,8 +83,8 @@ class SolutionForm(ModelForm):
 
     class Meta:
         widgets = {
-            'authors': HeavySelect2MultipleWidget(data_view='profile_select2', attrs={'style': 'width: 100%'}),
-            'problem': HeavySelect2Widget(data_view='problem_select2', attrs={'style': 'width: 250px'}),
+            'authors': AdminHeavySelect2MultipleWidget(data_view='profile_select2', attrs={'style': 'width: 100%'}),
+            'problem': AdminHeavySelect2Widget(data_view='problem_select2', attrs={'style': 'width: 250px'}),
         }
 
         if HeavyPreviewAdminPageDownWidget is not None:
@@ -100,3 +101,51 @@ class LicenseAdmin(admin.ModelAdmin):
     fields = ('key', 'link', 'name', 'display', 'icon', 'text')
     list_display = ('name', 'key')
     form = LicenseForm
+
+
+class UserListFilter(admin.SimpleListFilter):
+    title = _('user')
+    parameter_name = 'user'
+
+    def lookups(self, request, model_admin):
+        return User.objects.filter(is_staff=True).values_list('id', 'username')
+
+    def queryset(self, request, queryset):
+        if self.value():
+            return queryset.filter(user_id=self.value(), user__is_staff=True)
+        return queryset
+
+
+class LogEntryAdmin(admin.ModelAdmin):
+    readonly_fields = ('user', 'content_type', 'object_id', 'object_repr', 'action_flag', 'change_message')
+    list_display = ('__str__', 'action_time', 'user', 'content_type', 'object_link')
+    search_fields = ('object_repr', 'change_message')
+    list_filter = (UserListFilter, 'content_type')
+    list_display_links = None
+    actions = None
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return obj is None and request.user.is_superuser
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def object_link(self, obj):
+        if obj.is_deletion():
+            link = obj.object_repr
+        else:
+            ct = obj.content_type
+            try:
+                link = format_html('<a href="{1}">{0}</a>', obj.object_repr,
+                                   reverse('admin:%s_%s_change' % (ct.app_label, ct.model), args=(obj.object_id,)))
+            except NoReverseMatch:
+                link = obj.object_repr
+        return link
+    object_link.admin_order_field = 'object_repr'
+    object_link.short_description = _('object')
+
+    def queryset(self, request):
+        return super().queryset(request).prefetch_related('content_type')

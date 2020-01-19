@@ -2,6 +2,7 @@ import json
 import logging
 import socket
 import struct
+import zlib
 
 from django.conf import settings
 
@@ -11,19 +12,28 @@ logger = logging.getLogger('judge.judgeapi')
 size_pack = struct.Struct('!I')
 
 
+def _post_update_submission(submission, done=False):
+    if submission.problem.is_public:
+        event.post('submissions', {'type': 'done-submission' if done else 'update-submission',
+                                   'id': submission.id,
+                                   'contest': submission.contest_key,
+                                   'user': submission.user_id, 'problem': submission.problem_id,
+                                   'status': submission.status, 'language': submission.language.key})
+
+
 def judge_request(packet, reply=True):
-    sock = socket.create_connection(getattr(settings, 'BRIDGED_DJANGO_CONNECT', None) or
+    sock = socket.create_connection(settings.BRIDGED_DJANGO_CONNECT or
                                     settings.BRIDGED_DJANGO_ADDRESS[0])
 
     output = json.dumps(packet, separators=(',', ':'))
-    output = output.encode('zlib')
-    writer = sock.makefile('w', 0)
+    output = zlib.compress(output.encode('utf-8'))
+    writer = sock.makefile('wb')
     writer.write(size_pack.pack(len(output)))
     writer.write(output)
     writer.close()
 
     if reply:
-        reader = sock.makefile('r', -1)
+        reader = sock.makefile('rb', -1)
         input = reader.read(size_pack.size)
         if not input:
             raise ValueError('Judge did not respond')
@@ -34,13 +44,17 @@ def judge_request(packet, reply=True):
         reader.close()
         sock.close()
 
-        input = input.decode('zlib')
-        result = json.loads(input)
+        result = json.loads(zlib.decompress(input).decode('utf-8'))
         return result
 
 
-def judge_submission(submission, rejudge):
+def judge_submission(submission, rejudge, batch_rejudge=False):
     from .models import ContestSubmission, Submission, SubmissionTestCase
+
+    CONTEST_SUBMISSION_PRIORITY = 0
+    DEFAULT_PRIORITY = 1
+    REJUDGE_PRIORITY = 2
+    BATCH_REJUDGE_PRIORITY = 3
 
     updates = {'time': None, 'memory': None, 'points': None, 'result': None, 'error': None,
                'was_rejudged': rejudge, 'status': 'QU'}
@@ -50,7 +64,9 @@ def judge_submission(submission, rejudge):
         updates['is_pretested'] = ContestSubmission.objects.filter(submission=submission) \
             .values_list('problem__contest__run_pretests_only', flat=True)[0]
     except IndexError:
-        pass
+        priority = DEFAULT_PRIORITY
+    else:
+        priority = CONTEST_SUBMISSION_PRIORITY
 
     # This should prevent double rejudge issues by permitting only the judging of
     # QU (which is the initial state) and D (which is the final state).
@@ -71,8 +87,8 @@ def judge_submission(submission, rejudge):
             'submission-id': submission.id,
             'problem-id': submission.problem.code,
             'language': submission.language.key,
-            'source': submission.source,
-            'priority': 1 if rejudge else 0,
+            'source': submission.source.source,
+            'priority': BATCH_REJUDGE_PRIORITY if batch_rejudge else REJUDGE_PRIORITY if rejudge else priority,
         })
     except BaseException:
         logger.exception('Failed to send request to judge')
@@ -81,11 +97,7 @@ def judge_submission(submission, rejudge):
     else:
         if response['name'] != 'submission-received' or response['submission-id'] != submission.id:
             Submission.objects.filter(id=submission.id).update(status='IE')
-        if submission.problem.is_public:
-            event.post('submissions', {'type': 'update-submission', 'id': submission.id,
-                                       'contest': submission.contest_key,
-                                       'user': submission.user_id, 'problem': submission.problem_id,
-                                       'status': submission.status, 'language': submission.language.key})
+        _post_update_submission(submission)
         success = True
     return success
 
@@ -95,4 +107,11 @@ def disconnect_judge(judge, force=False):
 
 
 def abort_submission(submission):
-    judge_request({'name': 'terminate-submission', 'submission-id': submission.id}, reply=False)
+    from .models import Submission
+    response = judge_request({'name': 'terminate-submission', 'submission-id': submission.id})
+    # This defaults to true, so that in the case the judgelist fails to remove the submission from the queue,
+    # and returns a bad-request, the submission is not falsely shown as "Aborted" when it will still be judged.
+    if not response.get('judge-aborted', True):
+        Submission.objects.filter(id=submission.id).update(status='AB', result='AB')
+        event.post('sub_%s' % Submission.get_id_secret(submission.id), {'type': 'aborted-submission'})
+        _post_update_submission(submission, done=True)

@@ -40,8 +40,10 @@ import requests
 from django.conf import settings
 from django.contrib.auth.password_validation import CommonPasswordValidator
 from django.core.exceptions import ValidationError
-from django.utils.six import string_types, text_type
-from django.utils.translation import ugettext as _, ungettext
+from django.utils.six import string_types
+from django.utils.translation import gettext as _, ungettext
+
+from judge.utils.unicode import utf8bytes
 
 log = logging.getLogger(__name__)
 
@@ -64,11 +66,9 @@ def _get_pwned(prefix):
             ),
         )
         response.raise_for_status()
-    except requests.RequestException as e:
+    except requests.RequestException:
         # Gracefully handle timeouts and HTTP error response codes.
-        log.warning(
-            'Skipped Pwned Passwords check due to error: %r', e
-        )
+        log.warning('Skipped Pwned Passwords check due to error', exc_info=True)
         return None
 
     results = {}
@@ -85,9 +85,7 @@ def pwned_password(password):
     """
     if not isinstance(password, string_types):
         raise TypeError('Password values to check must be strings.')
-    if isinstance(password, text_type):
-        password = password.encode('utf-8')
-    password_hash = hashlib.sha1(password).hexdigest().upper()
+    password_hash = hashlib.sha1(utf8bytes(password)).hexdigest().upper()
     prefix, suffix = password_hash[:5], password_hash[5:]
     results = _get_pwned(prefix)
     if results is None:
@@ -100,12 +98,8 @@ class PwnedPasswordsValidator(object):
     """
     Password validator which checks the Pwned Passwords database.
     """
-    DEFAULT_HELP_MESSAGE = _(
-        "Your password can't be a commonly used password."
-    )
-    DEFAULT_PWNED_MESSAGE = _(
-        "This password is too common."
-    )
+    DEFAULT_HELP_MESSAGE = _("Your password can't be a commonly used password.")
+    DEFAULT_PWNED_MESSAGE = _('This password is too common.')
 
     def __init__(self, error_message=None, help_message=None):
         self.help_message = help_message or self.DEFAULT_HELP_MESSAGE
@@ -118,7 +112,7 @@ class PwnedPasswordsValidator(object):
             singular, plural = error_message
         self.error_message = {
             'singular': singular,
-            'plural': plural
+            'plural': plural,
         }
 
     def validate(self, password, user=None):

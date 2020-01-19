@@ -1,5 +1,7 @@
 from django.shortcuts import render
 from django.utils.decorators import method_decorator
+from django.views.generic import FormView
+from django.views.generic.detail import SingleObjectMixin
 
 from judge.utils.diggpaginator import DiggPaginator
 
@@ -22,7 +24,7 @@ def class_view_decorator(function_decorator):
 def generic_message(request, title, message, status=None):
     return render(request, 'generic-message.html', {
         'message': message,
-        'title': title
+        'title': title,
     }, status=status)
 
 
@@ -91,8 +93,23 @@ class QueryStringSortMixin(object):
         links[current] = sort_prefix + ('' if self.order.startswith('-') else '-') + current
 
         order = {key: '' for key in self.all_sorts}
-        order[current] = u' \u25BE' if self.order.startswith('-') else u' \u25B4'
+        order[current] = ' \u25BE' if self.order.startswith('-') else u' \u25B4'
         return {'sort_links': links, 'sort_order': order}
 
     def get_sort_paginate_context(self):
         return paginate_query_context(self.request)
+
+
+def short_circuit_middleware(view):
+    view.short_circuit_middleware = True
+    return view
+
+
+class SingleObjectFormView(SingleObjectMixin, FormView):
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        return super().post(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        return super().get(request, *args, **kwargs)

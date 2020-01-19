@@ -1,9 +1,11 @@
 import re
 from collections import defaultdict
-from urlparse import urljoin
+from urllib.parse import urljoin
 
+from ansi2html import Ansi2HTMLConverter
 from django.contrib.auth.models import AbstractUser
-from django.core.urlresolvers import reverse
+from django.urls import reverse
+from django.utils.safestring import mark_safe
 from lxml.html import Element
 
 from judge import lxml_tree
@@ -51,7 +53,7 @@ def get_user_rating(username, data):
 def get_user_info(usernames):
     return {name: (rank, rating) for name, rank, rating in
             Profile.objects.filter(user__username__in=usernames)
-                .values_list('user__username', 'display_rank', 'rating')}
+                   .values_list('user__username', 'display_rank', 'rating')}
 
 
 reference_map = {
@@ -122,7 +124,7 @@ def reference(text):
         if element.tail:
             populate_list(queries, tails, element, *process_reference(element.tail))
 
-    results = {type: reference_map[type][1](values) for type, values in queries.iteritems()}
+    results = {type: reference_map[type][1](values) for type, values in queries.items()}
     update_tree(texts, results, is_tail=False)
     update_tree(tails, results, is_tail=True)
     return tree
@@ -178,3 +180,8 @@ def join(first, second, *rest):
     if not rest:
         return urljoin(first, second)
     return urljoin(urljoin(first, second), *rest)
+
+
+@registry.filter(name='ansi2html')
+def ansi2html(s):
+    return mark_safe(Ansi2HTMLConverter(inline=True).convert(s, full=False))

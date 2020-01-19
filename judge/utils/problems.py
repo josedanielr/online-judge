@@ -2,12 +2,12 @@ from collections import defaultdict
 from math import e
 
 from django.core.cache import cache
-from django.db.models import F, Count, Max, Q, ExpressionWrapper, Case, When
+from django.db.models import Case, Count, ExpressionWrapper, F, Max, Q, When
 from django.db.models.fields import FloatField
 from django.utils import timezone
-from django.utils.translation import ugettext as _
+from django.utils.translation import gettext as _, gettext_noop
 
-from judge.models import Submission, Problem
+from judge.models import Problem, Submission
 
 __all__ = ['contest_completed_ids', 'get_result_data', 'user_completed_ids', 'user_authored_ids', 'user_editable_ids']
 
@@ -18,8 +18,8 @@ def user_authored_ids(profile):
 
 
 def user_editable_ids(profile):
-    result = set((Problem.objects.filter(authors=profile) | Problem.objects.filter(curators=profile)).values_list('id',
-                                                                                                                  flat=True))
+    result = set((Problem.objects.filter(authors=profile) | Problem.objects.filter(curators=profile))
+                 .values_list('id', flat=True))
     return result
 
 
@@ -69,6 +69,22 @@ def user_attempted_ids(profile):
     return result
 
 
+def _get_result_data(results):
+    return {
+        'categories': [
+            # Using gettext_noop here since this will be tacked into the cache, so it must be language neutral.
+            # The caller, SubmissionList.get_result_data will run ugettext on the name.
+            {'code': 'AC', 'name': gettext_noop('Accepted'), 'count': results['AC']},
+            {'code': 'WA', 'name': gettext_noop('Wrong'), 'count': results['WA']},
+            {'code': 'CE', 'name': gettext_noop('Compile Error'), 'count': results['CE']},
+            {'code': 'TLE', 'name': gettext_noop('Timeout'), 'count': results['TLE']},
+            {'code': 'ERR', 'name': gettext_noop('Error'),
+             'count': results['MLE'] + results['OLE'] + results['IR'] + results['RTE'] + results['AB'] + results['IE']},
+        ],
+        'total': sum(results.values()),
+    }
+
+
 def get_result_data(*args, **kwargs):
     if args:
         submissions = args[0]
@@ -77,19 +93,7 @@ def get_result_data(*args, **kwargs):
     else:
         submissions = Submission.objects.filter(**kwargs) if kwargs is not None else Submission.objects
     raw = submissions.values('result').annotate(count=Count('result')).values_list('result', 'count')
-    results = defaultdict(int, raw)
-
-    return {
-        'categories': [
-            {'code': 'AC', 'name': _('Accepted'), 'count': results['AC']},
-            {'code': 'WA', 'name': _('Wrong'), 'count': results['WA']},
-            {'code': 'CE', 'name': _('Compile Error'), 'count': results['CE']},
-            {'code': 'TLE', 'name': _('Timeout'), 'count': results['TLE']},
-            {'code': 'ERR', 'name': _('Error'),
-             'count': results['MLE'] + results['OLE'] + results['IR'] + results['RTE'] + results['AB'] + results['IE']},
-        ],
-        'total': sum(results.values()),
-    }
+    return _get_result_data(defaultdict(int, raw))
 
 
 def editable_problems(user, profile=None):
@@ -108,7 +112,8 @@ def hot_problems(duration, limit):
     cache_key = 'hot_problems:%d:%d' % (duration.total_seconds(), limit)
     qs = cache.get(cache_key)
     if qs is None:
-        qs = Problem.objects.filter(is_public=True, is_organization_private=False, submission__date__gt=timezone.now() - duration, points__gt=3, points__lt=25)
+        qs = Problem.objects.filter(is_public=True, is_organization_private=False,
+                                    submission__date__gt=timezone.now() - duration, points__gt=3, points__lt=25)
         qs0 = qs.annotate(k=Count('submission__user', distinct=True)).order_by('-k').values_list('k', flat=True)
 
         if not qs0:
@@ -119,21 +124,24 @@ def hot_problems(duration, limit):
         qs = qs.annotate(unique_user_count=Count('submission__user', distinct=True))
         # fix braindamage in excluding CE
         qs = qs.annotate(submission_volume=Count(Case(
-                When(submission__result='AC', then=1),
-                When(submission__result='WA', then=1),
-                When(submission__result='IR', then=1),
-                When(submission__result='RTE', then=1),
-                When(submission__result='TLE', then=1),
-                When(submission__result='OLE', then=1),
-                output_field=FloatField(),
-            )))
+            When(submission__result='AC', then=1),
+            When(submission__result='WA', then=1),
+            When(submission__result='IR', then=1),
+            When(submission__result='RTE', then=1),
+            When(submission__result='TLE', then=1),
+            When(submission__result='OLE', then=1),
+            output_field=FloatField(),
+        )))
         qs = qs.annotate(ac_volume=Count(Case(
-                When(submission__result='AC', then=1),
-                output_field=FloatField(),
-            )))
+            When(submission__result='AC', then=1),
+            output_field=FloatField(),
+        )))
         qs = qs.filter(unique_user_count__gt=max(mx / 3.0, 1))
 
-        qs = qs.annotate(ordering=ExpressionWrapper(0.5 * F('points') * (0.4 * F('ac_volume') / F('submission_volume') + 0.6 * F('ac_rate')) + 100 * e ** (F('unique_user_count') / mx), output_field=FloatField())).order_by('-ordering').defer('description')[:limit]
+        qs = qs.annotate(ordering=ExpressionWrapper(
+            0.5 * F('points') * (0.4 * F('ac_volume') / F('submission_volume') + 0.6 * F('ac_rate')) +
+            100 * e ** (F('unique_user_count') / mx), output_field=FloatField(),
+        )).order_by('-ordering').defer('description')[:limit]
 
         cache.set(cache_key, qs, 900)
     return qs

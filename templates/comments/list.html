@@ -3,12 +3,12 @@
     {% if has_comments %}
         <ul class="comments top-level-comments new-comments">
             {% set logged_in = request.user.is_authenticated %}
-            {% set profile = request.user.profile if logged_in else None %}
-            {% for node in mptt_tree(comment_list) recursive %}{% if not node.hidden %}
+            {% set profile = request.profile if logged_in else None %}
+            {% for node in mptt_tree(comment_list) recursive %}
                 <li id="comment-{{ node.id }}" data-revision="{{ node.revisions - 1 }}"
                     data-max-revision="{{ node.revisions - 1 }}"
                     data-revision-ajax="{{ url('comment_revision_ajax', node.id) }}" class="comment">
-                    <div class="comment-display">
+                    <div class="comment-display{% if node.score <= vote_hide_threshold %} bad-comment{% endif %}">
                         <div class="info">
                             <div class="vote">
                                 {% if logged_in %}
@@ -92,20 +92,29 @@
                             </span>
                             </div>
                             <div class="content content-description">
-                                <div class="comment-title"{% if not node.title or node.title.startswith('Re:') %}
-                                     style="display: none"{% endif %}>{{ node.title }}</div>
-                                <div class="comment-body">
+                                <div class="comment-body"{% if node.score <= vote_hide_threshold %} style="display:none"{% endif %}>
                                     {{ node.body|markdown('comment', MATH_ENGINE, True)|reference|str|safe }}
                                 </div>
+                                {% if node.score <= vote_hide_threshold %}
+                                    <div class="comment-body bad-comment-body">
+                                        <p>
+                                            {% trans id=node.id %}
+                                                This comment is hidden due to too much negative feedback.
+                                                Click <a href="javascript:comment_show_content({{ id }})">here</a> to view it.
+                                            {% endtrans %}
+                                        </p>
+                                    </div>
+                                {% endif %}
                             </div>
                         </div>
                     </div>
                 </li>
                 {% with children=node.get_children() %}
                     {% if children %}
-                        <ul class="comments">{{ loop(children) }}</ul>{% endif %}
+                        <ul id="comment-{{ node.id }}-children" class="comments">{{ loop(children) }}</ul>
+                    {% endif %}
                 {% endwith %}
-            {% endif %}{% endfor %}
+            {% endfor %}
         </ul>
     {% elif not comment_lock %}
         <p class="no-comments-message">{{ _('There are no comments at the moment.') }}</p>

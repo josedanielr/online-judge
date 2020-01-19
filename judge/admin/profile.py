@@ -1,28 +1,30 @@
 from django.contrib import admin
 from django.forms import ModelForm
 from django.utils.html import format_html
-from django.utils.translation import ugettext_lazy as _, ugettext, ungettext
+from django.utils.translation import gettext, gettext_lazy as _, ungettext
 from reversion.admin import VersionAdmin
 
 from django_ace import AceWidget
 from judge.models import Profile
-from judge.widgets import Select2Widget, AdminPagedownWidget
+from judge.widgets import AdminPagedownWidget, AdminSelect2Widget
 
 
 class ProfileForm(ModelForm):
     def __init__(self, *args, **kwargs):
         super(ProfileForm, self).__init__(*args, **kwargs)
-        self.fields['current_contest'].queryset = self.instance.contest_history.select_related('contest') \
-            .only('contest__name', 'user_id', 'virtual')
-        self.fields['current_contest'].label_from_instance = \
-            lambda obj: '%s v%d' % (obj.contest.name, obj.virtual) if obj.virtual else obj.contest.name
+        if 'current_contest' in self.base_fields:
+            # form.fields['current_contest'] does not exist when the user has only view permission on the model.
+            self.fields['current_contest'].queryset = self.instance.contest_history.select_related('contest') \
+                .only('contest__name', 'user_id', 'virtual')
+            self.fields['current_contest'].label_from_instance = \
+                lambda obj: '%s v%d' % (obj.contest.name, obj.virtual) if obj.virtual else obj.contest.name
 
     class Meta:
         widgets = {
-            'timezone': Select2Widget,
-            'language': Select2Widget,
-            'ace_theme': Select2Widget,
-            'current_contest': Select2Widget,
+            'timezone': AdminSelect2Widget,
+            'language': AdminSelect2Widget,
+            'ace_theme': AdminSelect2Widget,
+            'current_contest': AdminSelect2Widget,
         }
         if AdminPagedownWidget is not None:
             widgets['about'] = AdminPagedownWidget
@@ -42,13 +44,14 @@ class TimezoneFilter(admin.SimpleListFilter):
 
 
 class ProfileAdmin(VersionAdmin):
-    fields = ('user', 'name', 'display_rank', 'about', 'organizations', 'timezone', 'language', 'ace_theme',
-              'math_engine', 'last_access', 'ip', 'mute', 'is_totp_enabled', 'user_script', 'current_contest')
+    fields = ('user', 'display_rank', 'about', 'organizations', 'timezone', 'language', 'ace_theme',
+              'math_engine', 'last_access', 'ip', 'mute', 'is_unlisted', 'notes', 'is_totp_enabled', 'user_script',
+              'current_contest')
     readonly_fields = ('user',)
     list_display = ('admin_user_admin', 'email', 'is_totp_enabled', 'timezone_full',
                     'date_joined', 'last_access', 'ip', 'show_public')
     ordering = ('user__username',)
-    search_fields = ('user__username', 'name', 'ip', 'user__email')
+    search_fields = ('user__username', 'ip', 'user__email')
     list_filter = ('language', TimezoneFilter)
     actions = ('recalculate_points',)
     actions_on_top = True
@@ -73,12 +76,12 @@ class ProfileAdmin(VersionAdmin):
         return fields
 
     def show_public(self, obj):
-        return format_html(u'<a href="{0}" style="white-space:nowrap;">{1}</a>',
-                           obj.get_absolute_url(), ugettext('View on site'))
+        return format_html('<a href="{0}" style="white-space:nowrap;">{1}</a>',
+                           obj.get_absolute_url(), gettext('View on site'))
     show_public.short_description = ''
 
     def admin_user_admin(self, obj):
-        return obj.long_display_name
+        return obj.username
     admin_user_admin.admin_order_field = 'user__username'
     admin_user_admin.short_description = _('User')
 
@@ -109,5 +112,7 @@ class ProfileAdmin(VersionAdmin):
 
     def get_form(self, request, obj=None, **kwargs):
         form = super(ProfileAdmin, self).get_form(request, obj, **kwargs)
-        form.base_fields['user_script'].widget = AceWidget('javascript', request.user.profile.ace_theme)
+        if 'user_script' in form.base_fields:
+            # form.base_fields['user_script'] does not exist when the user has only view permission on the model.
+            form.base_fields['user_script'].widget = AceWidget('javascript', request.profile.ace_theme)
         return form

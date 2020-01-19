@@ -2,7 +2,7 @@ from textwrap import dedent
 
 from django import forms
 from django.conf import settings
-from django.template import Template, Context
+from django.template import Context, Template
 from lxml import html
 
 
@@ -34,15 +34,14 @@ class CompressorWidgetMixin(object):
     except ImportError:
         pass
     else:
-        if getattr(settings, 'COMPRESS_ENABLED', not getattr(settings, 'DEBUG', False)):
-            def _media(self):
-                media = super(CompressorWidgetMixin, self)._media()
+        if getattr(settings, 'COMPRESS_ENABLED', not settings.DEBUG):
+            @property
+            def media(self):
+                media = super().media
                 template = self.__templates[self.compress_css, self.compress_js]
                 result = html.fromstring(template.render(Context({'media': media})))
 
                 return forms.Media(
-                        css={'all': [result.find('.//link').get('href')]} if self.compress_css else media._css,
-                        js=[result.find('.//script').get('src')] if self.compress_js else media._js
+                    css={'all': [result.find('.//link').get('href')]} if self.compress_css else media._css,
+                    js=[result.find('.//script').get('src')] if self.compress_js else media._js,
                 )
-
-            media = property(_media)
