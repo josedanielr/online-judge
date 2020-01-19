@@ -78,13 +78,13 @@ STATICFILES_FINDERS += ('compressor.finders.CompressorFinder',)
 ########## Email configuration ##########
 #########################################
 # See <https://docs.djangoproject.com/en/1.9/topics/email/#email-backends>
-# for more documentation. You should follow the information there to define 
+# for more documentation. You should follow the information there to define
 # your email settings.
 
 # Use this if you are just testing.
 #EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
-# The following block is included for your convenience, if you want 
+# The following block is included for your convenience, if you want
 # to use Gmail.
 #EMAIL_USE_TLS = True
 #EMAIL_HOST = 'smtp.gmail.com'
@@ -121,10 +121,10 @@ SERVER_EMAIL = 'Don Mills Online Judge <errors@dmoj.ca>'
 # See <https://docs.djangoproject.com/en/1.9/howto/static-files/>.
 
 # Change this to somewhere more permanent., especially if you are using
-# webserver to serve the static files. This is the directory where all the 
+# webserver to serve the static files. This is the directory where all the
 # s
 # You must configure your webserver to serve this directory as /static/ in production.
-STATIC_ROOT = '/code/static'
+STATIC_ROOT = '/static'
 
 # URL to access static files.
 #STATIC_URL = '/static/'
@@ -136,7 +136,7 @@ STATIC_ROOT = '/code/static'
 ########## DMOJ-specific settings ##########
 ############################################
 
-## 
+##
 SITE_NAME = 'DMOJ'
 SITE_LONG_NAME = 'Don Mills Online Judge'
 SITE_ADMIN_EMAIL = 'admin@example.com'
@@ -144,7 +144,7 @@ TERMS_OF_SERVICE_URL = '//dmoj.ca/tos' # Use a flatpage.
 
 ## Bridge controls.
 # The judge connection address and port; where the judges will connect to the site.
-# You should change this to something your judges can actually connect to 
+# You should change this to something your judges can actually connect to
 # (e.g., a port that is unused and unbloc
 #BRIDGED_JUDGE_ADDRESS = [('localhost', 9999)]
 BRIDGED_JUDGE_HOST = 'host'
@@ -163,8 +163,7 @@ ENABLE_FTS = True
 BAD_MAIL_PROVIDERS = set()
 
 ## Event server.
-# Uncomment to enable live updating.
-#EVENT_DAEMON_USE = True
+EVENT_DAEMON_USE = False
 
 
 # Uncomment this section to use websocket/daemon.js included in the site.
@@ -271,7 +270,7 @@ LOGGING = {
         'console': {
             'level': 'DEBUG',
             'class': 'logging.handlers.RotatingFileHandler',
-            'filename': '/log/console.log', 
+            'filename': '/log/console.log',
             'formatter': 'file',
         },
     },
@@ -280,7 +279,7 @@ LOGGING = {
         'django.request': {
             'handlers': ['mail_admins'],
             'level': 'ERROR',
-       
+
         },
         # Judging logs as received by bridged.
         'judge.bridge': {
@@ -294,7 +293,7 @@ LOGGING = {
         },
         # Other loggers of int
         #  - judge.user: logs naughty user behaviours.
-        #  - judge.problem.pdf: PDF 
+        #  - judge.problem.pdf: PDF
         #  - judge.html: HTML parsing errors when processing problem statements etc.
         #  - judge.mail.activate: logs for the reply to activate feature.
         #  - event_socket_server
@@ -317,4 +316,3 @@ LOGGING = {
 ## ======== Custom Configuration ========
 # You may add whatever django configuration you would like here.
 # Do try to keep it separate so you can quickly patch in new settings.
-

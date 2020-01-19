@@ -12,18 +12,6 @@ services:
   redis:
     image: redis:alpine
     restart: always
-  base:
-    image: dmoj-site-base
-    build:
-      context: .
-      dockerfile: .docker/base/Dockerfile
-  static:
-    image: dmoj-site-static
-    build:
-      context: .
-      dockerfile: .docker/static/Dockerfile
-    depends_on:
-      - base
   site:
     build:
       context: .
@@ -37,21 +25,39 @@ services:
       - SQL_DATABASE_HOST=db
       - SQL_DATABASE_PORT=3306
     volumes:
-      - /tmp/log:/log
+      - .:/code
+      - app_static:/static
     ports:
       - "3031:3031"
     depends_on:
       - db
       - redis
-      - base
   nginx:
     build:
       context: .
       dockerfile: .docker/nginx/Dockerfile
     restart: always
     volumes:
-      - /tmp/log:/log
+      - ./log:/log
+      - app_static:/code/static:ro
     ports:
       - "8080:80"
     depends_on:
-      - static
+      - site
+
+  # base:
+  #   image: dmoj-site-base
+  #   build:
+  #     context: .
+  #     dockerfile: .docker/base/Dockerfile
+  # static:
+  #   image: dmoj-site-static
+  #   build:
+  #     context: .
+  #     dockerfile: .docker/static/Dockerfile
+  #   depends_on:
+  #     - base
+
+volumes:
+  # db_data:
+  app_static:
