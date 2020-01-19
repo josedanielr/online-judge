@@ -1,0 +1,57 @@
+version: '3'
+
+services:
+  db:
+    image: mariadb
+    restart: always
+    environment:
+      MYSQL_DATABASE: 'dmoj'
+      MYSQL_USER: 'dmoj'
+      MYSQL_PASSWORD: 'ChangeMe!'
+      MYSQL_ROOT_PASSWORD: 'ChangeMe!'
+  redis:
+    image: redis:alpine
+    restart: always
+  base:
+    image: dmoj-site-base
+    build:
+      context: .
+      dockerfile: .docker/base/Dockerfile
+  static:
+    image: dmoj-site-static
+    build:
+      context: .
+      dockerfile: .docker/static/Dockerfile
+    depends_on:
+      - base
+  site:
+    build:
+      context: .
+      dockerfile: .docker/site/Dockerfile
+    environment:
+      - DEBUG=1
+      - SECRET_KEY=ChangeMe
+      - SQL_DATABASE_NAME=dmoj
+      - SQL_DATABASE_USER=dmoj
+      - 'SQL_DATABASE_PASSWORD=ChangeMe!'
+      - SQL_DATABASE_HOST=db
+      - SQL_DATABASE_PORT=3306
+    volumes:
+      - /tmp/log:/log
+    ports:
+      - "3031:3031"
+    depends_on:
+      - db
+      - redis
+      - base
+  nginx:
+    build:
+      context: .
+      dockerfile: .docker/nginx/Dockerfile
+    restart: always
+    volumes:
+      - /tmp/log:/log
+    ports:
+      - "8080:80"
+    depends_on:
+      - static
