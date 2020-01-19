@@ -1,23 +1,23 @@
 import logging
 import re
 from operator import itemgetter
-from urllib import quote
+from urllib.parse import quote
 
 from django import forms
 from django.contrib.auth.models import User
-from django.core.urlresolvers import reverse
 from django.db import transaction
 from django.http import HttpResponseRedirect
 from django.shortcuts import render
+from django.urls import reverse
 from requests import HTTPError
 from reversion import revisions
-from social_django.middleware import SocialAuthExceptionMiddleware as OldSocialAuthExceptionMiddleware
 from social_core.backends.github import GithubOAuth2
 from social_core.exceptions import InvalidEmail, SocialAuthBaseException
 from social_core.pipeline.partial import partial
+from social_django.middleware import SocialAuthExceptionMiddleware as OldSocialAuthExceptionMiddleware
 
 from judge.forms import ProfileForm
-from judge.models import Profile, Language
+from judge.models import Language, Profile
 
 logger = logging.getLogger('judge.social_auth')
 
@@ -34,7 +34,7 @@ class GitHubSecureEmailOAuth2(GithubOAuth2):
 
         emails = [(e.get('email'), e.get('primary'), 0) for e in emails if isinstance(e, dict) and e.get('verified')]
         emails.sort(key=itemgetter(1), reverse=True)
-        emails = map(itemgetter(0), emails)
+        emails = list(map(itemgetter(0), emails))
 
         if emails:
             data['email'] = emails[0]
@@ -44,7 +44,7 @@ class GitHubSecureEmailOAuth2(GithubOAuth2):
         return data
 
 
-def slugify_username(username, renotword=re.compile('[^\w]')):
+def slugify_username(username, renotword=re.compile(r'[^\w]')):
     return renotword.sub('', username.replace('-', '_'))
 
 
@@ -74,7 +74,7 @@ def choose_username(backend, user, username=None, *args, **kwargs):
         else:
             form = UsernameForm(initial={'username': username})
         return render(request, 'registration/username_select.html', {
-            'title': 'Choose a username', 'form': form
+            'title': 'Choose a username', 'form': form,
         })
 
 
@@ -83,13 +83,8 @@ def make_profile(backend, user, response, is_new=False, *args, **kwargs):
     if is_new:
         if not hasattr(user, 'profile'):
             profile = Profile(user=user)
-            profile.language = Language.get_python2()
-            if backend.name == 'google-oauth2':
-                profile.name = response['displayName']
-            elif backend.name in ('github', 'facebook') and 'name' in response:
-                profile.name = response['name']
-            else:
-                logger.info('Info from %s: %s', backend.name, response)
+            profile.language = Language.get_python3()
+            logger.info('Info from %s: %s', backend.name, response)
             profile.save()
             form = ProfileForm(instance=profile, user=user)
         else:
@@ -103,7 +98,7 @@ def make_profile(backend, user, response, is_new=False, *args, **kwargs):
                     revisions.set_comment('Updated on registration')
                     return
         return render(backend.strategy.request, 'registration/profile_creation.html', {
-            'title': 'Create your profile', 'form': form
+            'title': 'Create your profile', 'form': form,
         })
 
 

@@ -1,18 +1,18 @@
 from django.forms import ModelForm
 from django.urls import reverse_lazy
 from django.utils.html import format_html
-from django.utils.translation import ungettext, ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _, ungettext
 from reversion.admin import VersionAdmin
 
 from judge.models import Comment
-from judge.widgets import HeavyPreviewAdminPageDownWidget, HeavySelect2Widget
+from judge.widgets import AdminHeavySelect2Widget, HeavyPreviewAdminPageDownWidget
 
 
 class CommentForm(ModelForm):
     class Meta:
         widgets = {
-            'author': HeavySelect2Widget(data_view='profile_select2'),
-            'parent': HeavySelect2Widget(data_view='comment_select2'),
+            'author': AdminHeavySelect2Widget(data_view='profile_select2'),
+            'parent': AdminHeavySelect2Widget(data_view='comment_select2'),
         }
         if HeavyPreviewAdminPageDownWidget is not None:
             widgets['body'] = HeavyPreviewAdminPageDownWidget(preview=reverse_lazy('comment_preview'))
@@ -56,7 +56,6 @@ class CommentAdmin(VersionAdmin):
         else:
             return format_html('{0}', obj.page)
     linked_page.short_description = _('Associated page')
-    linked_page.allow_tags = True
     linked_page.admin_order_field = 'page'
 
     def save_model(self, request, obj, form, change):

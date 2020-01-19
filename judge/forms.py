@@ -7,19 +7,19 @@ from django.contrib.auth.forms import AuthenticationForm
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db.models import Q
-from django.forms import ModelForm, CharField, TextInput, Form
+from django.forms import CharField, Form, ModelForm
 from django.urls import reverse_lazy
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 
 from django_ace import AceWidget
-from judge.models import Organization, Profile, Submission, PrivateMessage, Language
+from judge.models import Contest, Language, Organization, PrivateMessage, Problem, Profile, Submission
 from judge.utils.subscription import newsletter_id
-from judge.widgets import MathJaxPagedownWidget, HeavyPreviewPageDownWidget, PagedownWidget, \
-    Select2Widget, Select2MultipleWidget
+from judge.widgets import HeavyPreviewPageDownWidget, MathJaxPagedownWidget, PagedownWidget, Select2MultipleWidget, \
+    Select2Widget
 
 
-def fix_unicode(string, unsafe=tuple(u'\u202a\u202b\u202d\u202e')):
-    return string + (sum(k in unsafe for k in string) - string.count(u'\u202c')) * u'\u202c'
+def fix_unicode(string, unsafe=tuple('\u202a\u202b\u202d\u202e')):
+    return string + (sum(k in unsafe for k in string) - string.count('\u202c')) * '\u202c'
 
 
 class ProfileForm(ModelForm):
@@ -37,7 +37,7 @@ class ProfileForm(ModelForm):
             'ace_theme': Select2Widget(attrs={'style': 'width:200px'}),
         }
 
-        has_math_config = bool(getattr(settings, 'MATHOID_URL', False))
+        has_math_config = bool(settings.MATHOID_URL)
         if has_math_config:
             fields.append('math_engine')
             widgets['math_engine'] = Select2Widget(attrs={'style': 'width:200px'})
@@ -45,15 +45,16 @@ class ProfileForm(ModelForm):
         if HeavyPreviewPageDownWidget is not None:
             widgets['about'] = HeavyPreviewPageDownWidget(
                 preview=reverse_lazy('profile_preview'),
-                attrs={'style': 'max-width:700px;min-width:700px;width:700px'}
+                attrs={'style': 'max-width:700px;min-width:700px;width:700px'},
             )
 
     def clean(self):
         organizations = self.cleaned_data.get('organizations') or []
-        max_orgs = getattr(settings, 'MAX_USER_ORGANIZATION_COUNT', 3)
+        max_orgs = settings.DMOJ_USER_MAX_ORGANIZATION_COUNT
 
         if sum(org.is_open for org in organizations) > max_orgs:
-            raise ValidationError(_('You may not be part of more than {count} public organizations.').format(count=max_orgs))
+            raise ValidationError(
+                _('You may not be part of more than {count} public organizations.').format(count=max_orgs))
 
         return self.cleaned_data
 
@@ -62,7 +63,7 @@ class ProfileForm(ModelForm):
         super(ProfileForm, self).__init__(*args, **kwargs)
         if not user.has_perm('judge.edit_all_organization'):
             self.fields['organizations'].queryset = Organization.objects.filter(
-                Q(is_open=True) | Q(id__in=user.profile.organizations.all())
+                Q(is_open=True) | Q(id__in=user.profile.organizations.all()),
             )
 
 
@@ -79,13 +80,13 @@ class ProblemSubmitForm(ModelForm):
 
     class Meta:
         model = Submission
-        fields = ['problem', 'source', 'language']
+        fields = ['problem', 'language']
 
 
 class EditOrganizationForm(ModelForm):
     class Meta:
         model = Organization
-        fields = ['about', 'admins']
+        fields = ['about', 'logo_override_image', 'admins']
         widgets = {'admins': Select2MultipleWidget()}
         if HeavyPreviewPageDownWidget is not None:
             widgets['about'] = HeavyPreviewPageDownWidget(preview=reverse_lazy('organization_preview'))
@@ -109,7 +110,6 @@ class CustomAuthenticationForm(AuthenticationForm):
         self.has_google_auth = self._has_social_auth('GOOGLE_OAUTH2')
         self.has_facebook_auth = self._has_social_auth('FACEBOOK')
         self.has_github_auth = self._has_social_auth('GITHUB_SECURE')
-        self.has_dropbox_auth = self._has_social_auth('DROPBOX_OAUTH2')
 
     def _has_social_auth(self, key):
         return (getattr(settings, 'SOCIAL_AUTH_%s_KEY' % key, None) and
@@ -124,10 +124,10 @@ class NoAutoCompleteCharField(forms.CharField):
 
 
 class TOTPForm(Form):
-    TOLERANCE = getattr(settings, 'DMOJ_TOTP_TOLERANCE_HALF_MINUTES', 1)
+    TOLERANCE = settings.DMOJ_TOTP_TOLERANCE_HALF_MINUTES
 
     totp_token = NoAutoCompleteCharField(validators=[
-        RegexValidator('^[0-9]{6}$', _('Two Factor Authentication tokens must be 6 decimal digits.'))
+        RegexValidator('^[0-9]{6}$', _('Two Factor Authentication tokens must be 6 decimal digits.')),
     ])
 
     def __init__(self, *args, **kwargs):
@@ -137,3 +137,23 @@ class TOTPForm(Form):
     def clean_totp_token(self):
         if not pyotp.TOTP(self.totp_key).verify(self.cleaned_data['totp_token'], valid_window=self.TOLERANCE):
             raise ValidationError(_('Invalid Two Factor Authentication token.'))
+
+
+class ProblemCloneForm(Form):
+    code = CharField(max_length=20, validators=[RegexValidator('^[a-z0-9]+$', _('Problem code must be ^[a-z0-9]+$'))])
+
+    def clean_code(self):
+        code = self.cleaned_data['code']
+        if Problem.objects.filter(code=code).exists():
+            raise ValidationError(_('Problem with code already exists.'))
+        return code
+
+
+class ContestCloneForm(Form):
+    key = CharField(max_length=20, validators=[RegexValidator('^[a-z0-9]+$', _('Contest id must be ^[a-z0-9]+$'))])
+
+    def clean_key(self):
+        key = self.cleaned_data['key']
+        if Contest.objects.filter(key=key).exists():
+            raise ValidationError(_('Contest with key already exists.'))
+        return key

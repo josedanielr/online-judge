@@ -2,24 +2,25 @@ import json
 import mimetypes
 import os
 from itertools import chain
-from zipfile import ZipFile, BadZipfile
+from zipfile import BadZipfile, ZipFile
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import ValidationError
-from django.core.urlresolvers import reverse
-from django.forms import ModelForm, formset_factory, HiddenInput, NumberInput, Select, BaseModelFormSet
-from django.http import HttpResponseRedirect, HttpResponse, Http404
+from django.forms import BaseModelFormSet, HiddenInput, ModelForm, NumberInput, Select, formset_factory
+from django.http import Http404, HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
+from django.urls import reverse
 from django.utils.html import escape, format_html
 from django.utils.safestring import mark_safe
-from django.utils.translation import ugettext as _
+from django.utils.translation import gettext as _
 from django.views.generic import DetailView
 
 from judge.highlight_code import highlight_code
-from judge.models import ProblemData, Problem, ProblemTestCase, problem_data_storage, Submission
+from judge.models import Problem, ProblemData, ProblemTestCase, Submission, problem_data_storage
 from judge.utils.problem_data import ProblemDataCompiler
+from judge.utils.unicode import utf8text
 from judge.utils.views import TitleMixin
 from judge.views.problem import ProblemMixin
 
@@ -72,7 +73,8 @@ class ProblemCaseForm(ModelForm):
         }
 
 
-class ProblemCaseFormSet(formset_factory(ProblemCaseForm, formset=BaseModelFormSet, extra=1, max_num=1, can_delete=True)):
+class ProblemCaseFormSet(formset_factory(ProblemCaseForm, formset=BaseModelFormSet, extra=1, max_num=1,
+                                         can_delete=True)):
     model = ProblemTestCase
 
     def __init__(self, *args, **kwargs):
@@ -102,7 +104,7 @@ class ProblemSubmissionDiff(TitleMixin, ProblemMixin, DetailView):
         return _('Comparing submissions for {0}').format(self.object.name)
 
     def get_content_title(self):
-        return format_html(_(u'Comparing submissions for <a href="{1}">{0}</a>'), self.object.name,
+        return format_html(_('Comparing submissions for <a href="{1}">{0}</a>'), self.object.name,
                            reverse('problem_detail', args=[self.object.code]))
 
     def get_object(self, queryset=None):
@@ -140,12 +142,8 @@ class ProblemDataView(TitleMixin, ProblemManagerMixin):
         return _('Editing data for {0}').format(self.object.name)
 
     def get_content_title(self):
-        return format_html(_(u'Editing data for <a href="{1}">{0}</a>'), self.object.name,
-                           reverse('problem_detail', args=[self.object.code]))
-
-    def get_content_title(self):
         return mark_safe(escape(_('Editing data for %s')) % (
-            format_html(u'<a href="{1}">{0}</a>', self.object.name,
+            format_html('<a href="{1}">{0}</a>', self.object.name,
                         reverse('problem_detail', args=[self.object.code]))))
 
     def get_data_form(self, post=False):
@@ -209,8 +207,8 @@ def problem_data_file(request, problem, path):
         raise Http404()
 
     response = HttpResponse()
-    if hasattr(settings, 'PROBLEM_DATA_INTERNAL') and request.META.get('SERVER_SOFTWARE', '').startswith('nginx/'):
-        response['X-Accel-Redirect'] = '%s/%s/%s' % (settings.PROBLEM_DATA_INTERNAL, problem, path)
+    if hasattr(settings, 'DMOJ_PROBLEM_DATA_INTERNAL') and request.META.get('SERVER_SOFTWARE', '').startswith('nginx/'):
+        response['X-Accel-Redirect'] = '%s/%s/%s' % (settings.DMOJ_PROBLEM_DATA_INTERNAL, problem, path)
     else:
         try:
             with problem_data_storage.open(os.path.join(problem, path), 'rb') as f:
@@ -218,10 +216,7 @@ def problem_data_file(request, problem, path):
         except IOError:
             raise Http404()
 
-    type, encoding = mimetypes.guess_type(path)
-    response['Content-Type'] = type or 'application/octet-stream'
-    if encoding is not None:
-        response['Content-Encoding'] = encoding
+    response['Content-Type'] = 'application/octet-stream'
     return response
 
 
@@ -232,8 +227,8 @@ def problem_init_view(request, problem):
         raise Http404()
 
     try:
-        with problem_data_storage.open(os.path.join(problem.code, 'init.yml')) as f:
-            data = f.read().rstrip('\n')
+        with problem_data_storage.open(os.path.join(problem.code, 'init.yml'), 'rb') as f:
+            data = utf8text(f.read()).rstrip('\n')
     except IOError:
         raise Http404()
 
@@ -241,6 +236,6 @@ def problem_init_view(request, problem):
         'raw_source': data, 'highlighted_source': highlight_code(data, 'yaml'),
         'title': _('Generated init.yml for %s') % problem.name,
         'content_title': mark_safe(escape(_('Generated init.yml for %s')) % (
-            format_html(u'<a href="{1}">{0}</a>', problem.name,
-                        reverse('problem_detail', args=[problem.code]))))
+            format_html('<a href="{1}">{0}</a>', problem.name,
+                        reverse('problem_detail', args=[problem.code])))),
     })

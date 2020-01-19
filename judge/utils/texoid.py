@@ -1,6 +1,7 @@
 import hashlib
 import json
 import logging
+from base64 import b64decode
 
 import requests
 from django.conf import settings
@@ -18,26 +19,26 @@ class TexoidRenderer(object):
     def __init__(self):
         self.cache = HashFileCache(settings.TEXOID_CACHE_ROOT,
                                    settings.TEXOID_CACHE_URL,
-                                   getattr(settings, 'TEXOID_GZIP', False))
-        self.meta_cache = caches[getattr(settings, 'TEXOID_META_CACHE', 'default')]
-        self.meta_cache_ttl = getattr(settings, 'TEXOID_META_CACHE_TTL', 86400)
+                                   settings.TEXOID_GZIP)
+        self.meta_cache = caches[settings.TEXOID_META_CACHE]
+        self.meta_cache_ttl = settings.TEXOID_META_CACHE_TTL
 
     def query_texoid(self, document, hash):
         self.cache.create(hash)
 
         try:
             response = requests.post(settings.TEXOID_URL, data=utf8bytes(document), headers={
-                'Content-Type': 'application/x-tex'
+                'Content-Type': 'application/x-tex',
             })
             response.raise_for_status()
         except requests.HTTPError as e:
             if e.response.status == 400:
                 logger.error('Texoid failed to render: %s\n%s', document, e.response.text)
             else:
-                logger.exception('Failed to connect to texoid for: %s' % document)
+                logger.exception('Failed to connect to texoid for: %s', document)
             return
         except Exception:
-            logger.exception('Failed to connect to texoid for: %s' % document)
+            logger.exception('Failed to connect to texoid for: %s', document)
             return
 
         try:
@@ -51,10 +52,10 @@ class TexoidRenderer(object):
             return {'error': data['error']}
 
         meta = data['meta']
-        self.cache.cache_data(hash, 'meta', json.dumps(meta), url=False, gzip=False)
+        self.cache.cache_data(hash, 'meta', utf8bytes(json.dumps(meta)), url=False, gzip=False)
 
         result = {
-            'png': self.cache.cache_data(hash, 'png', data['png'].decode('base64')),
+            'png': self.cache.cache_data(hash, 'png', b64decode(data['png'])),
             'svg': self.cache.cache_data(hash, 'svg', data['svg'].encode('utf-8')),
             'meta': meta,
         }
@@ -76,7 +77,7 @@ class TexoidRenderer(object):
         return result
 
     def get_result(self, formula):
-        hash = hashlib.sha1(formula).hexdigest()
+        hash = hashlib.sha1(utf8bytes(formula)).hexdigest()
 
         if self.cache.has_file(hash, 'svg'):
             return self.query_cache(hash)

@@ -1,5 +1,3 @@
-import gettext as gettext_module
-
 from django.conf import settings
 from django.utils import six
 from django.utils.safestring import SafeData, mark_safe
@@ -9,13 +7,11 @@ if settings.USE_I18N:
 
     _translations = {}
 
-
     def translation(language):
         global _translations
         if language not in _translations:
             _translations[language] = DjangoTranslation(language, domain='dmoj-user')
         return _translations[language]
-
 
     def do_translate(message, translation_function):
         """Copied from django.utils.translation.trans_real"""
@@ -25,7 +21,7 @@ if settings.USE_I18N:
         if len(eol_message) == 0:
             # Returns an empty value of the corresponding type if an empty message
             # is given, instead of metadata, which is the default gettext behavior.
-            result = u''
+            result = ''
         else:
             translation_object = translation(get_language())
             result = getattr(translation_object, translation_function)(eol_message)
@@ -37,9 +33,8 @@ if settings.USE_I18N:
 
         return result
 
-
-    def ugettext(message):
-        return do_translate(message, 'ugettext')
+    def gettext(message):
+        return do_translate(message, 'gettext')
 else:
-    def ugettext(message):
+    def gettext(message):
         return message

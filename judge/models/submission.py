@@ -3,17 +3,18 @@ import hmac
 
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
-from django.core.urlresolvers import reverse
 from django.db import models
+from django.urls import reverse
 from django.utils.functional import cached_property
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 
-from judge.judgeapi import judge_submission, abort_submission
+from judge.judgeapi import abort_submission, judge_submission
 from judge.models.problem import Problem, TranslatedProblemForeignKeyQuerySet
 from judge.models.profile import Profile
 from judge.models.runtime import Language
+from judge.utils.unicode import utf8bytes
 
-__all__ = ['SUBMISSION_RESULT', 'Submission', 'SubmissionTestCase']
+__all__ = ['SUBMISSION_RESULT', 'Submission', 'SubmissionSource', 'SubmissionTestCase']
 
 SUBMISSION_RESULT = (
     ('AC', _('Accepted')),
@@ -40,6 +41,7 @@ class Submission(models.Model):
         ('CE', _('Compile Error')),
         ('AB', _('Aborted')),
     )
+    IN_PROGRESS_GRADING_STATUS = ('QU', 'P', 'G')
     RESULT = SUBMISSION_RESULT
     USER_DISPLAY_CODES = {
         'AC': _('Accepted'),
@@ -59,14 +61,13 @@ class Submission(models.Model):
         'AB': _('Aborted'),
     }
 
-    user = models.ForeignKey(Profile)
-    problem = models.ForeignKey(Problem)
+    user = models.ForeignKey(Profile, on_delete=models.CASCADE)
+    problem = models.ForeignKey(Problem, on_delete=models.CASCADE)
     date = models.DateTimeField(verbose_name=_('submission time'), auto_now_add=True, db_index=True)
     time = models.FloatField(verbose_name=_('execution time'), null=True, db_index=True)
     memory = models.FloatField(verbose_name=_('memory usage'), null=True)
     points = models.FloatField(verbose_name=_('points granted'), null=True, db_index=True)
-    language = models.ForeignKey(Language, verbose_name=_('submission language'))
-    source = models.TextField(verbose_name=_('source code'), max_length=65536)
+    language = models.ForeignKey(Language, verbose_name=_('submission language'), on_delete=models.CASCADE)
     status = models.CharField(verbose_name=_('status'), max_length=2, choices=STATUS, default='QU', db_index=True)
     result = models.CharField(verbose_name=_('result'), max_length=3, choices=SUBMISSION_RESULT,
                               default=None, null=True, blank=True, db_index=True)
@@ -79,6 +80,8 @@ class Submission(models.Model):
                                   on_delete=models.SET_NULL)
     was_rejudged = models.BooleanField(verbose_name=_('was rejudged by admin'), default=False)
     is_pretested = models.BooleanField(verbose_name=_('was ran on pretests only'), default=False)
+    contest_object = models.ForeignKey('Contest', verbose_name=_('contest'), null=True, blank=True,
+                                       on_delete=models.SET_NULL, related_name='+')
 
     objects = TranslatedProblemForeignKeyQuerySet.as_manager()
 
@@ -109,8 +112,8 @@ class Submission(models.Model):
     def long_status(self):
         return Submission.USER_DISPLAY_CODES.get(self.short_status, '')
 
-    def judge(self, rejudge):
-        judge_submission(self, rejudge)
+    def judge(self, rejudge=False, batch_rejudge=False):
+        judge_submission(self, rejudge, batch_rejudge)
 
     judge.alters_data = True
 
@@ -139,13 +142,13 @@ class Submission(models.Model):
     def is_graded(self):
         return self.status not in ('QU', 'P', 'G')
 
-    @property
+    @cached_property
     def contest_key(self):
         if hasattr(self, 'contest'):
-            return self.contest.participation.contest.key
+            return self.contest_object.key
 
-    def __unicode__(self):
-        return u'Submission %d of %s by %s' % (self.id, self.problem, self.user.user.username)
+    def __str__(self):
+        return 'Submission %d of %s by %s' % (self.id, self.problem, self.user.user.username)
 
     def get_absolute_url(self):
         return reverse('submission_status', args=(self.id,))
@@ -159,8 +162,8 @@ class Submission(models.Model):
 
     @classmethod
     def get_id_secret(cls, sub_id):
-        return (hmac.new(settings.EVENT_DAEMON_SUBMISSION_KEY, str(sub_id), hashlib.sha512).hexdigest()[:16] +
-                '%08x' % sub_id)
+        return (hmac.new(utf8bytes(settings.EVENT_DAEMON_SUBMISSION_KEY), b'%d' % sub_id, hashlib.sha512)
+                    .hexdigest()[:16] + '%08x' % sub_id)
 
     @cached_property
     def id_secret(self):
@@ -179,10 +182,20 @@ class Submission(models.Model):
         verbose_name_plural = _('submissions')
 
 
+class SubmissionSource(models.Model):
+    submission = models.OneToOneField(Submission, on_delete=models.CASCADE, verbose_name=_('associated submission'),
+                                      related_name='source')
+    source = models.TextField(verbose_name=_('source code'), max_length=65536)
+
+    def __str__(self):
+        return 'Source of %s' % self.submission
+
+
 class SubmissionTestCase(models.Model):
     RESULT = SUBMISSION_RESULT
 
-    submission = models.ForeignKey(Submission, verbose_name=_('associated submission'), related_name='test_cases')
+    submission = models.ForeignKey(Submission, verbose_name=_('associated submission'),
+                                   related_name='test_cases', on_delete=models.CASCADE)
     case = models.IntegerField(verbose_name=_('test case ID'))
     status = models.CharField(max_length=3, verbose_name=_('status flag'), choices=SUBMISSION_RESULT)
     time = models.FloatField(verbose_name=_('execution time'), null=True)
@@ -199,5 +212,6 @@ class SubmissionTestCase(models.Model):
         return Submission.USER_DISPLAY_CODES.get(self.status, '')
 
     class Meta:
+        unique_together = ('submission', 'case')
         verbose_name = _('submission test case')
         verbose_name_plural = _('submission test cases')

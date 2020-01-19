@@ -3,11 +3,12 @@ import itertools
 from django.contrib.contenttypes.fields import GenericRelation
 from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist
-from django.core.urlresolvers import reverse
 from django.core.validators import RegexValidator
 from django.db import models
+from django.db.models import CASCADE
+from django.urls import reverse
 from django.utils.functional import cached_property
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from mptt.fields import TreeForeignKey
 from mptt.models import MPTTModel
 from reversion.models import Version
@@ -20,8 +21,8 @@ from judge.utils.cachedict import CacheDict
 
 __all__ = ['Comment', 'CommentLock', 'CommentVote']
 
-comment_validator = RegexValidator('^[pcs]:[a-z0-9]+$|^b:\d+$',
-                                   _('Page code must be ^[pcs]:[a-z0-9]+$|^b:\d+$'))
+comment_validator = RegexValidator(r'^[pcs]:[a-z0-9]+$|^b:\d+$',
+                                   _(r'Page code must be ^[pcs]:[a-z0-9]+$|^b:\d+$'))
 
 
 class VersionRelation(GenericRelation):
@@ -37,14 +38,15 @@ class VersionRelation(GenericRelation):
 
 
 class Comment(MPTTModel):
-    author = models.ForeignKey(Profile, verbose_name=_('commenter'))
+    author = models.ForeignKey(Profile, verbose_name=_('commenter'), on_delete=CASCADE)
     time = models.DateTimeField(verbose_name=_('posted time'), auto_now_add=True)
     page = models.CharField(max_length=30, verbose_name=_('associated page'), db_index=True,
                             validators=[comment_validator])
     score = models.IntegerField(verbose_name=_('votes'), default=0)
     body = models.TextField(verbose_name=_('body of comment'), max_length=8192)
     hidden = models.BooleanField(verbose_name=_('hide the comment'), default=0)
-    parent = TreeForeignKey('self', verbose_name=_('parent'), null=True, blank=True, related_name='replies')
+    parent = TreeForeignKey('self', verbose_name=_('parent'), null=True, blank=True, related_name='replies',
+                            on_delete=CASCADE)
     versions = VersionRelation()
 
     class Meta:
@@ -61,6 +63,7 @@ class Comment(MPTTModel):
 
         problem_access = CacheDict(lambda code: Problem.objects.get(code=code).is_accessible_by(user))
         contest_access = CacheDict(lambda key: Contest.objects.get(key=key).is_accessible_by(user))
+        blog_access = CacheDict(lambda id: BlogPost.objects.get(id=id).can_see(user))
 
         if user.is_superuser:
             return queryset[:n]
@@ -72,7 +75,7 @@ class Comment(MPTTModel):
             if not slice:
                 break
             for comment in slice:
-                if comment.page.startswith('p:'):
+                if comment.page.startswith('p:') or comment.page.startswith('s:'):
                     try:
                         if problem_access[comment.page[2:]]:
                             output.append(comment)
@@ -83,6 +86,12 @@ class Comment(MPTTModel):
                         if contest_access[comment.page[2:]]:
                             output.append(comment)
                     except Contest.DoesNotExist:
+                        pass
+                elif comment.page.startswith('b:'):
+                    try:
+                        if blog_access[comment.page[2:]]:
+                            output.append(comment)
+                    except BlogPost.DoesNotExist:
                         pass
                 else:
                     output.append(comment)
@@ -110,7 +119,7 @@ class Comment(MPTTModel):
                 link = reverse('blog_post', args=(self.page[2:], slug))
             elif self.page.startswith('s:'):
                 link = reverse('problem_editorial', args=(self.page[2:],))
-        except:
+        except Exception:
             link = 'invalid'
         return link
 
@@ -136,7 +145,7 @@ class Comment(MPTTModel):
     def get_absolute_url(self):
         return '%s#comment-%d' % (self.link, self.id)
 
-    def __unicode__(self):
+    def __str__(self):
         return '%(page)s by %(user)s' % {'page': self.page, 'user': self.author.user.username}
 
         # Only use this when queried with
@@ -153,8 +162,8 @@ class Comment(MPTTModel):
 
 
 class CommentVote(models.Model):
-    voter = models.ForeignKey(Profile, related_name='voted_comments')
-    comment = models.ForeignKey(Comment, related_name='votes')
+    voter = models.ForeignKey(Profile, related_name='voted_comments', on_delete=CASCADE)
+    comment = models.ForeignKey(Comment, related_name='votes', on_delete=CASCADE)
     score = models.IntegerField()
 
     class Meta:

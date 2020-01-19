@@ -1,4 +1,5 @@
 import base64
+from io import BytesIO
 
 import pyotp
 import qrcode
@@ -8,9 +9,8 @@ from django.contrib.auth.views import SuccessURLAllowedHostsMixin
 from django.http import HttpResponseBadRequest, HttpResponseRedirect
 from django.urls import reverse
 from django.utils.http import is_safe_url
-from django.utils.translation import ugettext as _
+from django.utils.translation import gettext as _
 from django.views.generic import FormView
-from io import BytesIO
 
 from judge.forms import TOTPForm
 from judge.utils.views import TitleMixin
@@ -26,7 +26,7 @@ class TOTPView(TitleMixin, LoginRequiredMixin, FormView):
 
     def dispatch(self, request, *args, **kwargs):
         if request.user.is_authenticated:
-            self.profile = request.user.profile
+            self.profile = request.profile
             if self.check_skip():
                 return self.next_page()
         return super(TOTPView, self).dispatch(request, *args, **kwargs)
@@ -82,7 +82,7 @@ class TOTPEnableView(TOTPView):
         image = qr.make_image(fill_color='black', back_color='white')
         buf = BytesIO()
         image.save(buf, format='PNG')
-        return 'data:image/png;base64,' + base64.b64encode(buf.getvalue())
+        return 'data:image/png;base64,' + base64.b64encode(buf.getvalue()).decode('ascii')
 
 
 class TOTPDisableView(TOTPView):
@@ -90,7 +90,9 @@ class TOTPDisableView(TOTPView):
     template_name = 'registration/totp_disable.html'
 
     def check_skip(self):
-        return not self.profile.is_totp_enabled
+        if not self.profile.is_totp_enabled:
+            return True
+        return settings.DMOJ_REQUIRE_STAFF_2FA and self.request.user.is_staff
 
     def form_valid(self, form):
         self.profile.is_totp_enabled = False

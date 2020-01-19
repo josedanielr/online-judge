@@ -1,9 +1,9 @@
 from django.contrib import admin
 from django.forms import ModelForm, ModelMultipleChoiceField
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 
 from judge.models import Problem
-from judge.widgets import HeavySelect2MultipleWidget
+from judge.widgets import AdminHeavySelect2MultipleWidget
 
 
 class ProblemGroupForm(ModelForm):
@@ -12,7 +12,7 @@ class ProblemGroupForm(ModelForm):
         queryset=Problem.objects.all(),
         required=False,
         help_text=_('These problems are included in this group of problems'),
-        widget=HeavySelect2MultipleWidget(data_view='problem_select2'))
+        widget=AdminHeavySelect2MultipleWidget(data_view='problem_select2'))
 
 
 class ProblemGroupAdmin(admin.ModelAdmin):
@@ -21,7 +21,7 @@ class ProblemGroupAdmin(admin.ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         super(ProblemGroupAdmin, self).save_model(request, obj, form, change)
-        obj.problem_set = form.cleaned_data['problems']
+        obj.problem_set.set(form.cleaned_data['problems'])
         obj.save()
 
     def get_form(self, request, obj=None, **kwargs):
@@ -35,7 +35,7 @@ class ProblemTypeForm(ModelForm):
         queryset=Problem.objects.all(),
         required=False,
         help_text=_('These problems are included in this type of problems'),
-        widget=HeavySelect2MultipleWidget(data_view='problem_select2'))
+        widget=AdminHeavySelect2MultipleWidget(data_view='problem_select2'))
 
 
 class ProblemTypeAdmin(admin.ModelAdmin):
@@ -44,7 +44,7 @@ class ProblemTypeAdmin(admin.ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         super(ProblemTypeAdmin, self).save_model(request, obj, form, change)
-        obj.problem_set = form.cleaned_data['problems']
+        obj.problem_set.set(form.cleaned_data['problems'])
         obj.save()
 
     def get_form(self, request, obj=None, **kwargs):

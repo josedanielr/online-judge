@@ -1,5 +1,5 @@
-import logging
 import json
+import logging
 import struct
 
 from event_socket_server import ZlibPacketHandler
@@ -18,7 +18,7 @@ class DjangoHandler(ZlibPacketHandler):
             'disconnect-judge': self.on_disconnect,
         }
         self._to_kill = True
-        #self.server.schedule(5, self._kill_if_no_request)
+        # self.server.schedule(5, self._kill_if_no_request)
 
     def _kill_if_no_request(self):
         if self._to_kill:
@@ -33,7 +33,7 @@ class DjangoHandler(ZlibPacketHandler):
         packet = json.loads(packet)
         try:
             result = self.handlers.get(packet.get('name', None), self.on_malformed)(packet)
-        except:
+        except Exception:
             logger.exception('Error in packet handling (Django-facing)')
             result = {'name': 'bad-request'}
         self.send(result, self._schedule_close)
@@ -53,10 +53,7 @@ class DjangoHandler(ZlibPacketHandler):
         return {'name': 'submission-received', 'submission-id': id}
 
     def on_termination(self, data):
-        try:
-            self.server.judges.abort(data['submission-id'])
-        except KeyError:
-            return {'name': 'bad-request'}
+        return {'name': 'submission-received', 'judge-aborted': self.server.judges.abort(data['submission-id'])}
 
     def on_disconnect(self, data):
         judge_id = data['judge-id']

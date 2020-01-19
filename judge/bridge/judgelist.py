@@ -14,12 +14,13 @@ PriorityMarker = namedtuple('PriorityMarker', 'priority')
 
 
 class JudgeList(object):
-    priorities = 3
+    priorities = 4
 
     def __init__(self):
         self.queue = dllist()
         self.priority = [self.queue.append(PriorityMarker(i)) for i in range(self.priorities)]
         self.judges = set()
+        self.node_map = {}
         self.submission_map = {}
         self.lock = RLock()
 
@@ -39,11 +40,14 @@ class JudgeList(object):
                             self.judges.remove(judge)
                             return
                         self.queue.remove(node)
+                        del self.node_map[id]
                         break
                 node = node.next
 
     def register(self, judge):
         with self.lock:
+            # Disconnect all judges with the same name, see <https://github.com/DMOJ/online-judge/issues/828>
+            self.disconnect(judge, force=True)
             self.judges.add(judge)
             self._handle_free_judge(judge)
 
@@ -78,20 +82,33 @@ class JudgeList(object):
     def abort(self, submission):
         with self.lock:
             logger.info('Abort request: %d', submission)
-            self.submission_map[submission].abort()
+            try:
+                self.submission_map[submission].abort()
+                return True
+            except KeyError:
+                try:
+                    node = self.node_map[submission]
+                except KeyError:
+                    pass
+                else:
+                    self.queue.remove(node)
+                    del self.node_map[submission]
+                return False
 
     def check_priority(self, priority):
         return 0 <= priority < self.priorities
 
     def judge(self, id, problem, language, source, priority):
         with self.lock:
-            if id in self.submission_map:
-                logger.warning('Already judging? %d', id)
+            if id in self.submission_map or id in self.node_map:
+                # Already judging, don't queue again. This can happen during batch rejudges, rejudges should be
+                # idempotent.
                 return
 
             candidates = [judge for judge in self.judges if not judge.working and judge.can_judge(problem, language)]
             logger.info('Free judges: %d', len(candidates))
             if candidates:
+                # Schedule the submission on the judge reporting least load.
                 judge = min(candidates, key=attrgetter('load'))
                 logger.info('Dispatched submission %d to: %s', id, judge.name)
                 self.submission_map[id] = judge
@@ -102,5 +119,5 @@ class JudgeList(object):
                     self.judges.discard(judge)
                     return self.judge(id, problem, language, source, priority)
             else:
-                self.queue.insert((id, problem, language, source), self.priority[priority])
+                self.node_map[id] = self.queue.insert((id, problem, language, source), self.priority[priority])
                 logger.info('Queued submission: %d', id)

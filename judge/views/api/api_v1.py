@@ -1,7 +1,7 @@
 from operator import attrgetter
 
-from django.db.models import Prefetch, F
-from django.http import JsonResponse, Http404
+from django.db.models import F, Prefetch
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404
 
 from dmoj import settings
@@ -16,7 +16,8 @@ def sane_time_repr(delta):
 
 
 def api_v1_contest_list(request):
-    queryset = Contest.objects.filter(is_public=True, is_private=False).prefetch_related(
+    queryset = Contest.objects.filter(is_visible=True, is_private=False,
+                                      is_organization_private=False).prefetch_related(
         Prefetch('tags', queryset=ContestTag.objects.only('name'), to_attr='tag_list')).defer('description')
 
     return JsonResponse({c.key: {
@@ -24,15 +25,15 @@ def api_v1_contest_list(request):
         'start_time': c.start_time.isoformat(),
         'end_time': c.end_time.isoformat(),
         'time_limit': c.time_limit and sane_time_repr(c.time_limit),
-        'labels': map(attrgetter('name'), c.tag_list),
+        'labels': list(map(attrgetter('name'), c.tag_list)),
     } for c in queryset})
 
 
 def api_v1_contest_detail(request, contest):
     contest = get_object_or_404(Contest, key=contest)
 
-    in_contest = contest.is_in_contest(request)
-    can_see_rankings = contest.can_see_scoreboard(request)
+    in_contest = contest.is_in_contest(request.user)
+    can_see_rankings = contest.can_see_scoreboard(request.user)
     if contest.hide_scoreboard and in_contest:
         can_see_rankings = False
 
@@ -43,9 +44,7 @@ def api_v1_contest_detail(request, contest):
                       .annotate(username=F('user__user__username'))
                       .order_by('-score', 'cumtime') if can_see_rankings else [])
 
-    if not (in_contest or contest.ended or request.user.is_superuser
-            or (request.user.is_authenticated and contest.organizers.filter(id=request.profile.id).exists())):
-        problems = []
+    can_see_problems = (in_contest or contest.ended or contest.is_editable_by(request.user))
 
     return JsonResponse({
         'time_limit': contest.time_limit and contest.time_limit.total_seconds(),
@@ -55,6 +54,8 @@ def api_v1_contest_detail(request, contest):
         'is_rated': contest.is_rated,
         'rate_all': contest.is_rated and contest.rate_all,
         'has_rating': contest.ratings.exists(),
+        'rating_floor': contest.rating_floor,
+        'rating_ceiling': contest.rating_ceiling,
         'format': {
             'name': contest.format_name,
             'config': contest.format_config,
@@ -65,14 +66,15 @@ def api_v1_contest_detail(request, contest):
                 'partial': problem.partial,
                 'name': problem.problem.name,
                 'code': problem.problem.code,
-            } for problem in problems],
+            } for problem in problems] if can_see_problems else [],
         'rankings': [
             {
                 'user': participation.username,
                 'points': participation.score,
                 'cumtime': participation.cumtime,
-                'solutions': contest.format.get_problem_breakdown(participation, problems)
-            } for participation in participations]
+                'is_disqualified': participation.is_disqualified,
+                'solutions': contest.format.get_problem_breakdown(participation, problems),
+            } for participation in participations],
     })
 
 
@@ -88,7 +90,7 @@ def api_v1_problem_list(request):
         'points': points,
         'partial': partial,
         'name': name,
-        'group': group
+        'group': group,
     } for code, points, partial, name, group in queryset})
 
 
@@ -111,19 +113,23 @@ def api_v1_problem_info(request, problem):
 
 
 def api_v1_user_list(request):
-    queryset = Profile.objects.filter(is_unlisted=False).values_list('user__username', 'points', 'display_rank')
+    queryset = Profile.objects.filter(is_unlisted=False).values_list('user__username', 'points', 'performance_points',
+                                                                     'display_rank')
     return JsonResponse({username: {
         'points': points,
-        'rank': rank
-    } for username, points, rank in queryset})
+        'performance_points': performance_points,
+        'rank': rank,
+    } for username, points, performance_points, rank in queryset})
 
 
 def api_v1_user_info(request, user):
     profile = get_object_or_404(Profile, user__username=user)
-    submissions = list(Submission.objects.filter(case_points=F('case_total'), user=profile, problem__is_public=True, problem__is_organization_private=False)
+    submissions = list(Submission.objects.filter(case_points=F('case_total'), user=profile, problem__is_public=True,
+                                                 problem__is_organization_private=False)
                        .values('problem').distinct().values_list('problem__code', flat=True))
     resp = {
         'points': profile.points,
+        'performance_points': profile.performance_points,
         'rank': profile.display_rank,
         'solved_problems': submissions,
         'organizations': list(profile.organizations.values_list('id', flat=True)),
@@ -133,8 +139,11 @@ def api_v1_user_info(request, user):
 
     contest_history = {}
     if not profile.is_unlisted:
-        for contest_key, rating, volatility in ContestParticipation.objects.filter(user=profile, virtual=0, contest__is_public=True, contest__is_private=False) \
-                                                                   .values_list('contest__key', 'rating__rating', 'rating__volatility'):
+        participations = ContestParticipation.objects.filter(user=profile, virtual=0, contest__is_visible=True,
+                                                             contest__is_private=False,
+                                                             contest__is_organization_private=False)
+        for contest_key, rating, volatility in participations.values_list('contest__key', 'rating__rating',
+                                                                          'rating__volatility'):
             contest_history[contest_key] = {
                 'rating': rating,
                 'volatility': volatility,

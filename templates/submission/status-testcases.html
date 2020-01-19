@@ -1,4 +1,4 @@
-{% if request.in_contest and submission.contest_or_none and request.participation.id == submission.contest_or_none.participation_id %}
+{% if submission.contest_or_none %}
     {% set prefix_length = submission.contest_or_none.problem.output_prefix_override %}
 {% else %}
     {% set prefix_length = None %}
@@ -12,11 +12,11 @@
         <h4>{{ _('Your submission is being processed...') }}</h4>
     {% elif submission.status == 'CE' %}
         <h3>{{ _('Compilation Error') }}</h3>
-        <pre>{{ submission.error|safe }}</pre>
+        <pre>{{ submission.error|ansi2html }}</pre>
     {% else %}
         {% if submission.error %}
             <h3>{{ _('Compilation Warnings') }}</h3>
-            <pre>{{ submission.error|safe }}</pre>
+            <pre>{{ submission.error|ansi2html }}</pre>
             <hr class="half-hr"><br>
         {% endif %}
         {% if is_pretest %}
@@ -36,7 +36,7 @@
         <table>{% for case in batch.cases %}
             <tr id="{{ case.id }}" class="case-row toggle closed">
                 <td>
-                    {%- if case.status != 'AC' and case.output -%}
+                    {%- if case.status != 'AC' and case.output and (prefix_length is none or prefix_length > 0) -%}
                         <i class="fa fa-chevron-right fa-fw"></i>
                     {%- endif -%}
                     {%- if batch.id -%}
@@ -72,12 +72,12 @@
                 {% endif %}
             </tr>
 
-            {% if case.status != 'AC' and case.output %}
+            {% if case.status != 'AC' and case.output and (prefix_length is none or prefix_length > 0) %}
                 <tr id="{{ case.id }}-output" style="display:none" class="case-feedback toggled">
                     <td colspan="5">
                         <div class="case-info">
                             <strong>{{ _('Your output (clipped)') }}</strong>
-                            {% if prefix_length == None %}
+                            {% if prefix_length is none %}
                                 <pre class="case-output">{{ case.output|linebreaksbr }}</pre>
                             {% else %}
                                 <pre class="case-output">{{ case.output[:prefix_length]|linebreaksbr }}</pre>

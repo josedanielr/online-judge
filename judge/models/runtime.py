@@ -1,12 +1,14 @@
 from collections import OrderedDict, defaultdict
 from operator import attrgetter
 
+from django.conf import settings
 from django.core.cache import cache
-from django.core.urlresolvers import reverse
 from django.db import models
+from django.db.models import CASCADE
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.functional import cached_property
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 
 from judge.judgeapi import disconnect_judge
 
@@ -38,7 +40,7 @@ class Language(models.Model):
                             help_text=_("Do not set this unless you know what you're doing! It will override the "
                                         "usually more specific, judge-provided runtime info!"))
     description = models.TextField(verbose_name=_('language description'),
-                                   help_text=_('Use field this to inform users of quirks with your environment, '
+                                   help_text=_('Use this field to inform users of quirks with your environment, '
                                                'additional restrictions, etc.'), blank=True)
     extension = models.CharField(max_length=10, verbose_name=_('extension'),
                                  help_text=_('The extension of source files, e.g., "py" or "cpp".'))
@@ -55,8 +57,8 @@ class Language(models.Model):
             runtimes[id].add(runtime.version)
 
         lang_versions = []
-        for id, version_list in runtimes.iteritems():
-            lang_versions.append((id, list(sorted(version_list, key=lambda a: tuple(map(int, a.split('.')))))))
+        for id, version_list in runtimes.items():
+            lang_versions.append((id, sorted(version_list, key=lambda a: tuple(map(int, a.split('.'))))))
         return lang_versions
 
     @classmethod
@@ -67,7 +69,7 @@ class Language(models.Model):
         result = defaultdict(set)
         for id, cn in Language.objects.values_list('id', 'common_name'):
             result[cn].add(id)
-        result = {id: cns for id, cns in result.iteritems() if len(cns) > 1}
+        result = {id: cns for id, cns in result.items() if len(cns) > 1}
         cache.set('lang:cn_map', result, 86400)
         return result
 
@@ -75,7 +77,7 @@ class Language(models.Model):
     def short_display_name(self):
         return self.short_name or self.key
 
-    def __unicode__(self):
+    def __str__(self):
         return self.name
 
     @cached_property
@@ -86,12 +88,20 @@ class Language(models.Model):
             return self.name
 
     @classmethod
-    def get_python2(cls):
-        # We really need a default language, and this app is in Python 2
-        return Language.objects.get_or_create(key='PY2', defaults={'name': 'Python 2'})[0]
+    def get_python3(cls):
+        # We really need a default language, and this app is in Python 3
+        return Language.objects.get_or_create(key='PY3', defaults={'name': 'Python 3'})[0]
 
     def get_absolute_url(self):
         return reverse('runtime_list') + '#' + self.key
+
+    @classmethod
+    def get_default_language(cls):
+        return Language.objects.get(key=settings.DEFAULT_USER_LANGUAGE)
+
+    @classmethod
+    def get_default_language_pk(cls):
+        return cls.get_default_language().pk
 
     class Meta:
         ordering = ['key']
@@ -100,8 +110,8 @@ class Language(models.Model):
 
 
 class RuntimeVersion(models.Model):
-    language = models.ForeignKey(Language, verbose_name=_('language to which this runtime belongs'))
-    judge = models.ForeignKey('Judge', verbose_name=_('judge on which this runtime exists'))
+    language = models.ForeignKey(Language, verbose_name=_('language to which this runtime belongs'), on_delete=CASCADE)
+    judge = models.ForeignKey('Judge', verbose_name=_('judge on which this runtime exists'), on_delete=CASCADE)
     name = models.CharField(max_length=64, verbose_name=_('runtime name'))
     version = models.CharField(max_length=64, verbose_name=_('runtime version'), blank=True)
     priority = models.IntegerField(verbose_name=_('order in which to display this runtime'), default=0)
@@ -110,7 +120,7 @@ class RuntimeVersion(models.Model):
 class Judge(models.Model):
     name = models.CharField(max_length=50, help_text=_('Server name, hostname-style'), unique=True)
     created = models.DateTimeField(auto_now_add=True, verbose_name=_('time of creation'))
-    auth_key = models.CharField(max_length=100, help_text=_('A key to authenticated this judge'),
+    auth_key = models.CharField(max_length=100, help_text=_('A key to authenticate this judge'),
                                 verbose_name=_('authentication key'))
     is_blocked = models.BooleanField(verbose_name=_('block judge'), default=False,
                                      help_text=_('Whether this judge should be blocked from connecting, '
@@ -125,7 +135,7 @@ class Judge(models.Model):
     problems = models.ManyToManyField('Problem', verbose_name=_('problems'), related_name='judges')
     runtimes = models.ManyToManyField(Language, verbose_name=_('judges'), related_name='judges')
 
-    def __unicode__(self):
+    def __str__(self):
         return self.name
 
     def disconnect(self, force=False):
@@ -146,7 +156,7 @@ class Judge(models.Model):
                 ret[key] = {'name': data['language__name'], 'runtime': []}
             ret[key]['runtime'].append((data['name'], (data['version'],)))
 
-        return ret.items()
+        return list(ret.items())
 
     @cached_property
     def uptime(self):

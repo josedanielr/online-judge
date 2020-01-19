@@ -1,11 +1,11 @@
-Django>=1.11,<2
+Django>=2.2,<3
 django_compressor
-django-mptt>=0.8.4,<0.9
-http://nexus.uclv.edu.cu/repository/github/DMOJ/django-pagedown/archive/master.zip#egg=django-pagedown
-django-registration-redux>=1.11,<2
+django-mptt
+django-pagedown<2
+django-registration-redux
 django-reversion
 django-social-share
-django-sortedm2m
+-e git://github.com/DMOJ/django-sortedm2m.git#egg=django-sortedm2m
 django-impersonate
 http://nexus.uclv.edu.cu/repository/github/DMOJ/dmoj-wpadmin/archive/master.zip
 lxml
@@ -26,6 +26,10 @@ pyotp
 qrcode[pil]
 jsonfield
 pymoss
+packaging
+celery
+-e git://github.com/DMOJ/ansi2html.git#egg=ansi2html
+sqlparse
 django_select2
 websocket-client
 websocket

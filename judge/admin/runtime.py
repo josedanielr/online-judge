@@ -1,17 +1,17 @@
 from django.conf.urls import url
-from django.core.urlresolvers import reverse
 from django.db.models import TextField
-from django.forms import TextInput, ModelForm, ModelMultipleChoiceField
+from django.forms import ModelForm, ModelMultipleChoiceField, TextInput
 from django.http import HttpResponseRedirect
+from django.shortcuts import get_object_or_404
+from django.urls import reverse
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
-from django.shortcuts import get_object_or_404
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from reversion.admin import VersionAdmin
 
 from django_ace import AceWidget
 from judge.models import Judge, Problem
-from judge.widgets import AdminPagedownWidget, HeavySelect2MultipleWidget
+from judge.widgets import AdminHeavySelect2MultipleWidget, AdminPagedownWidget
 
 
 class LanguageForm(ModelForm):
@@ -20,7 +20,7 @@ class LanguageForm(ModelForm):
         queryset=Problem.objects.all(),
         required=False,
         help_text=_('These problems are NOT allowed to be submitted in this language'),
-        widget=HeavySelect2MultipleWidget(data_view='problem_select2'))
+        widget=AdminHeavySelect2MultipleWidget(data_view='problem_select2'))
 
     class Meta:
         if AdminPagedownWidget is not None:
@@ -35,37 +35,35 @@ class LanguageAdmin(VersionAdmin):
 
     def save_model(self, request, obj, form, change):
         super(LanguageAdmin, self).save_model(request, obj, form, change)
-        obj.problem_set = Problem.objects.exclude(id__in=form.cleaned_data['problems'].values('id'))
+        obj.problem_set.set(Problem.objects.exclude(id__in=form.cleaned_data['problems'].values('id')))
 
     def get_form(self, request, obj=None, **kwargs):
         self.form.base_fields['problems'].initial = \
             Problem.objects.exclude(id__in=obj.problem_set.values('id')).values_list('pk', flat=True) if obj else []
         form = super(LanguageAdmin, self).get_form(request, obj, **kwargs)
         if obj is not None:
-            form.base_fields['template'].widget = AceWidget(obj.ace, request.user.profile.ace_theme)
+            form.base_fields['template'].widget = AceWidget(obj.ace, request.profile.ace_theme)
         return form
 
 
 class GenerateKeyTextInput(TextInput):
-    def render(self, name, value, attrs=None):
+    def render(self, name, value, attrs=None, renderer=None):
         text = super(TextInput, self).render(name, value, attrs)
         return mark_safe(text + format_html(
             '''\
 <a href="#" onclick="return false;" class="button" id="id_{0}_regen">Regenerate</a>
 <script type="text/javascript">
-(function ($) {{
-    $(document).ready(function () {{
-        $('#id_{0}_regen').click(function () {{
-            var length = 100,
-                charset = "abcdefghijklnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789`~!@#$%^&*()_+-=|[]{{}};:,<>./?",
-                key = "";
-            for (var i = 0, n = charset.length; i < length; ++i) {{
-                key += charset.charAt(Math.floor(Math.random() * n));
-            }}
-            $('#id_{0}').val(key);
-        }});
+django.jQuery(document).ready(function ($) {{
+    $('#id_{0}_regen').click(function () {{
+        var length = 100,
+            charset = "abcdefghijklnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789`~!@#$%^&*()_+-=|[]{{}};:,<>./?",
+            key = "";
+        for (var i = 0, n = charset.length; i < length; ++i) {{
+            key += charset.charAt(Math.floor(Math.random() * n));
+        }}
+        $('#id_{0}').val(key);
     }});
-}})(django.jQuery);
+}});
 </script>
 ''', name))
 
