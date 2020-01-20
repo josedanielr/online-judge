@@ -17,14 +17,19 @@ RUN pip install --upgrade pip \
     && pip install uwsgi \
     && pip install -r requirements.txt
 
+RUN pip install -r requirements-github.txt
+
 COPY .docker/site/local_settings.py ./dmoj/
 
 RUN python manage.py migrate \
     && python3 manage.py loaddata navbar \
     && python3 manage.py loaddata language_small
 
+# TODO: compile CSSs here
+# ./make_style.sh
+
 ENTRYPOINT ./.docker/site/boot.sh
 
 CMD ["uwsgi", "--ini", "./.docker/uwsgi.ini"]
 
-EXPOSE 8000
+EXPOSE 3031

@@ -29,7 +29,8 @@ INSTALLED_APPS += (
 # Documentation: <https://docs.djangoproject.com/en/1.9/topics/cache/>
 CACHES = {
     'default': {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'
+        'BACKEND': 'django.core.cache.backends.memcached.MemcachedCache',
+        'LOCATION': 'memcached:11211',
     }
 }
 

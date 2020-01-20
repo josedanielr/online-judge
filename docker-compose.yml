@@ -1,42 +1,46 @@
 version: '3'
 
 services:
+
   db:
     image: mariadb
-    restart: always
+    restart: unless-stopped
     environment:
       MYSQL_DATABASE: 'dmoj'
       MYSQL_USER: 'dmoj'
       MYSQL_PASSWORD: 'ChangeMe!'
       MYSQL_ROOT_PASSWORD: 'ChangeMe!'
-  redis:
-    image: redis:alpine
-    restart: always
+
+  memcached:
+    image: memcached
+    restart: unless-stopped
+
   site:
     build:
       context: .
       dockerfile: .docker/site/Dockerfile
+    restart: unless-stopped
     environment:
       - DEBUG=1
       - SECRET_KEY=ChangeMe
       - SQL_DATABASE_NAME=dmoj
       - SQL_DATABASE_USER=dmoj
-      - 'SQL_DATABASE_PASSWORD=ChangeMe!'
+      - SQL_DATABASE_PASSWORD=ChangeMe!
       - SQL_DATABASE_HOST=db
       - SQL_DATABASE_PORT=3306
     volumes:
       - .:/code
+      - ./log:/log
       - app_static:/static
-    ports:
-      - "3031:3031"
     depends_on:
       - db
-      - redis
+      - memcached
+
   nginx:
     build:
       context: .
       dockerfile: .docker/nginx/Dockerfile
-    restart: always
+    restart: unless-stopped
     volumes:
       - ./log:/log
       - app_static:/code/static:ro
