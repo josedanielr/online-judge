@@ -3,7 +3,7 @@ FROM python:3.8
 
 ENV PYHTONUNBUFFERED 1
 
-# Use Nexus UCLV (Optional)
+# Use a local Nexus as mirror
 COPY .docker/conf/pip.conf /etc/
 
 RUN mkdir /log && mkdir /code
