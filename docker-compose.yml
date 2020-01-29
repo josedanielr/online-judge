@@ -4,21 +4,26 @@ services:
 
   db:
     image: mariadb
+    container_name: dmoj-db
     restart: unless-stopped
     environment:
       MYSQL_DATABASE: 'dmoj'
       MYSQL_USER: 'dmoj'
       MYSQL_PASSWORD: 'ChangeMe!'
       MYSQL_ROOT_PASSWORD: 'ChangeMe!'
+    volumes:
+      - db_data:/var/lib/mysql
 
   memcached:
-    image: memcached
+    image: memcached:alpine
+    container_name: dmoj-memcached
     restart: unless-stopped
 
   site:
     build:
       context: .
       dockerfile: .docker/site/Dockerfile
+    container_name: dmoj-site
     restart: unless-stopped
     environment:
       - DEBUG=1
@@ -27,11 +32,10 @@ services:
       - SQL_DATABASE_USER=dmoj
       - SQL_DATABASE_PASSWORD=ChangeMe!
       - SQL_DATABASE_HOST=db
-      - SQL_DATABASE_PORT=3306
     volumes:
-      - .:/code
-      - ./log:/log
-      - app_static:/static
+      - .:/dmoj/code
+      - ./log:/dmoj/log
+      - app_static:/dmoj/static
     depends_on:
       - db
       - memcached
@@ -40,12 +44,13 @@ services:
     build:
       context: .
       dockerfile: .docker/nginx/Dockerfile
+    container_name: dmoj-nginx
     restart: unless-stopped
     volumes:
-      - ./log:/log
-      - app_static:/code/static:ro
+      - ./log:/dmoj/log
+      - app_static:/dmoj/static:ro
     ports:
-      - "8080:80"
+      - "8002:80"
     depends_on:
       - site
 
@@ -63,5 +68,5 @@ services:
   #     - base
 
 volumes:
-  # db_data:
+  db_data:
   app_static:

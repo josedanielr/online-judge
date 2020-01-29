@@ -1,35 +1,33 @@
 # FROM python:3.8-alpine
 FROM python:3.8
 
+EXPOSE 3031
+VOLUME /dmoj/code /dmoj/log /dmoj/static
+
 ENV PYHTONUNBUFFERED 1
 
 # Use a local Nexus as mirror
 COPY .docker/conf/pip.conf /etc/
 
-RUN mkdir /log && mkdir /code
-VOLUME /code
-WORKDIR /code
-
-# This is for caching to maintain this step cached
-COPY requirements.txt .
+COPY requirements.txt requirements-github.txt ./
 
 RUN pip install --upgrade pip \
-    && pip install uwsgi \
-    && pip install -r requirements.txt
+    && pip install -r requirements-github.txt \
+    && rm requirements-github.txt
 
-RUN pip install -r requirements-github.txt
+RUN pip install uwsgi python-memcached \
+    && pip install -r requirements.txt \
+    && rm requirements.txt
 
-COPY .docker/site/local_settings.py ./dmoj/
+RUN mkdir -p /dmoj/log /dmoj/code
+WORKDIR /dmoj/code
 
-RUN python manage.py migrate \
-    && python3 manage.py loaddata navbar \
-    && python3 manage.py loaddata language_small
-
-# TODO: compile CSSs here
+# TODO: compile CSSs here (requires sass and postcss)
 # ./make_style.sh
 
-ENTRYPOINT ./.docker/site/boot.sh
+COPY .docker/site/uwsgi.ini ../
+COPY .docker/site/boot.sh ../
 
-CMD ["uwsgi", "--ini", "./.docker/uwsgi.ini"]
+ENTRYPOINT ["../boot.sh"]
 
-EXPOSE 3031
+CMD ["uwsgi", "--ini", "../uwsgi.ini"]

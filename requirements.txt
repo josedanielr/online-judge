@@ -30,4 +30,4 @@ sqlparse
 django_select2
 websocket-client
 websocket
-pymysql
+mysqlclient
