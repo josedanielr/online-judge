@@ -33,7 +33,6 @@ services:
       - SQL_DATABASE_PASSWORD=ChangeMe!
       - SQL_DATABASE_HOST=db
     volumes:
-      - .:/dmoj/code
       - ./log:/dmoj/log
       - app_static:/dmoj/static
     depends_on:

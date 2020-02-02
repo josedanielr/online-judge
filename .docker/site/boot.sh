@@ -18,6 +18,7 @@ echo -e '\n\n#### Running DB migrations\n'
 # echo -e '\n\n#### Loading fixtures\n'
 # python manage.py loaddata navbar
 # python manage.py loaddata language_small
+# python manage.py loaddata demo
 
 # execute any command passed as parameter
 "$@"

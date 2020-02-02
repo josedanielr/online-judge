@@ -2,12 +2,12 @@
 FROM python:3.8
 
 EXPOSE 3031
-VOLUME /dmoj/code /dmoj/log /dmoj/static
+VOLUME /dmoj/log /dmoj/static
 
 ENV PYHTONUNBUFFERED 1
 
 # Use a local Nexus as mirror
-COPY .docker/conf/pip.conf /etc/
+COPY .docker/conf/pip.conf /etc
 
 COPY requirements.txt requirements-github.txt ./
 
@@ -22,7 +22,11 @@ RUN pip install uwsgi python-memcached \
 RUN mkdir -p /dmoj/log /dmoj/code
 WORKDIR /dmoj/code
 
-# TODO: compile CSSs here (requires sass and postcss)
+COPY . .
+
+# TODO: compile CSSs here. Requirements:
+# - NodeSource 12.x
+# - npm install -g sass postcss-cli autoprefixer
 # ./make_style.sh
 
 COPY .docker/site/uwsgi.ini ../
