@@ -54,7 +54,7 @@ class Command(BaseCommand):
     def write_to_zip(self, user, problem, sub_id, src, lang):
         #print('user: %s, problem %s, submission %d.%s, src size %d' % (user, problem, sub_id, lang, len(src)))
 
-        path = [user, problem, str(sub_id) + '.' + lang]
+        path = [problem, user + '_' + str(sub_id) + '.' + lang]
         self._zip.writestr('/' + '/'.join(path), src.encode('utf-8').strip())
 
     def create_zip(self, name):
