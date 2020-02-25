@@ -1,4 +1,15 @@
-# FROM python:3.8-alpine
+FROM josedrm/nodesource as builder
+
+RUN mkdir /usr/etc
+COPY .docker/conf/npmrc /usr/etc
+RUN npm install -g sass postcss-cli autoprefixer
+
+# Compile SASS sources
+COPY resources resources/
+COPY make_style.sh .
+RUN ./make_style.sh
+
+
 FROM python:3.8
 
 EXPOSE 3031
@@ -23,11 +34,7 @@ RUN mkdir -p /dmoj/log /dmoj/code
 WORKDIR /dmoj/code
 
 COPY . .
-
-# TODO: compile CSSs here. Requirements:
-# - NodeSource 12.x
-# - npm install -g sass postcss-cli autoprefixer
-# ./make_style.sh
+COPY --from=builder resources resources/
 
 COPY .docker/site/uwsgi.ini ../
 COPY .docker/site/boot.sh ../

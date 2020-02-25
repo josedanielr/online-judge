@@ -1,1 +1,1 @@
-registry=http://host.docker.internal:8081/repository/npm/
+registry = http://host.docker.internal:8081/repository/npm/
