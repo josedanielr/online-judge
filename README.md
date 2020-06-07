@@ -10,7 +10,7 @@ See it live at [dmoj.ca](https://dmoj.ca/)!
 * [Support for over **60 language runtimes**](https://github.com/DMOJ/online-judge#supported-languages)
 * Highly robust judging system:
    * Supports **interactive** and **signature-graded** tasks
-   * Supports **runtime data generators** and **custom output validators** 
+   * Supports **runtime data generators** and **custom output validators**
    * Specifying **per-language resource limits**
    * Capable of scaling to hundreds of judging servers
 * Extremely configurable contest system:
@@ -44,7 +44,7 @@ Problems are written in Markdown, with LaTeX-enabled math and figures, as well a
 
 
 ### Submit in over 60 languages
-Contestants may submit in over 60 programming languages with syntax highlighting. Problem authors can restrict problems to specific languages, and set language-specific resource limits. 
+Contestants may submit in over 60 programming languages with syntax highlighting. Problem authors can restrict problems to specific languages, and set language-specific resource limits.
 
 
 ![](https://i.imgur.com/8CjfHQb.png)
@@ -70,7 +70,7 @@ Contests feature an optional rating system, and can be configured to run in any 
 ![](https://i.imgur.com/0V1fzZi.png)
 
 
-Contests may be limited to particular organizations, or require access codes to join. Hidden scoreboards are supported. The contest system integrates with [Stanford MOSS](https://theory.stanford.edu/~aiken/moss/) to provide plagiarism checking. 
+Contests may be limited to particular organizations, or require access codes to join. Hidden scoreboards are supported. The contest system integrates with [Stanford MOSS](https://theory.stanford.edu/~aiken/moss/) to provide plagiarism checking.
 Editorial support is built-in, and editorials are automatically published once a contest ends.
 
 
@@ -144,3 +144,9 @@ The judge can also grade in the languages listed below. These languages are less
 * Turing
 * V8 JavaScript
 * Brain\*\*\*\*
+
+## Docker
+
+- Build: `docker-compose build`
+- Run: `docker-compose up -d`
+- First time initialization of DB: `docker-compose exec site ./init_db.sh`

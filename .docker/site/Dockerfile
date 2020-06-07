@@ -10,7 +10,7 @@ COPY make_style.sh .
 RUN ./make_style.sh
 
 
-FROM python:3.8
+FROM josedrm/django-base
 
 EXPOSE 3031
 VOLUME /dmoj/log /dmoj/static
@@ -26,7 +26,7 @@ RUN pip install --upgrade pip \
     && pip install -r requirements-github.txt \
     && rm requirements-github.txt
 
-RUN pip install uwsgi python-memcached \
+RUN pip install python-memcached \
     && pip install -r requirements.txt \
     && rm requirements.txt
 
