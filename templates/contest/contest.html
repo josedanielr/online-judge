@@ -28,11 +28,11 @@
     <div id="banner">
         <a href="https://www.timeanddate.com/worldclock/fixedtime.html?msg={{ contest.name|urlquote('') }}&amp;iso=
                 {{- contest.start_time|utc|date('Y-m-d\TH:i:s') }}" class="date">
-            {%- if participating and participation.virtual and not participation.ended -%}
-                {% if participation.spectate %}
+            {%- if contest.is_in_contest(request.user) and not request.participation.live -%}
+                {% if request.participation.spectate %}
                     {{- _('Spectating, contest ends in %(countdown)s.', countdown=contest.time_before_end|as_countdown) -}}
-                {% elif participation.end_time %}
-                    {{- _('Participating virtually, %(countdown)s remaining.', countdown=participation.time_remaining|as_countdown) -}}
+                {% elif request.participation.end_time %}
+                    {{- _('Participating virtually, %(countdown)s remaining.', countdown=request.participation.time_remaining|as_countdown) -}}
                 {% else %}
                     {{- _('Participating virtually.') -}}
                 {% endif %}
@@ -42,11 +42,11 @@
                 {% elif contest.end_time < now %}
                     {{- _('Contest is over.') -}}
                 {% else %}
-                    {%- if participating -%}
-                        {% if participation.ended %}
+                    {%- if has_joined -%}
+                        {% if live_participation.ended %}
                             {{- _('Your time is up! Contest ends in %(countdown)s.', countdown=contest.time_before_end|as_countdown) -}}
                         {% else %}
-                            {{- _('You have %(countdown)s remaining.', countdown=participation.time_remaining|as_countdown) -}}
+                            {{- _('You have %(countdown)s remaining.', countdown=live_participation.time_remaining|as_countdown) -}}
                         {% endif %}
                     {%- else -%}
                         {{ _('Contest ends in %(countdown)s.', countdown=contest.time_before_end|as_countdown) }}
@@ -84,7 +84,9 @@
                     <th>{{ _('Points') }}</th>
                     <th>{{ _('AC Rate') }}</th>
                     <th>{{ _('Users') }}</th>
-                    <th></th>
+                    {% if contest_has_public_editorials %}
+                        <th>{{ _('Editorials') }}</th>
+                    {% endif %}
                 </tr>
                 </thead>
                 <tbody>
@@ -92,9 +94,9 @@
                     <tr>
                         <td>
                             {% if problem.is_public %}
-                                <a href="{{ url('problem_detail', problem.code) }}">{{ problem.i18n_name }}</a>
+                                <a href="{{ url('problem_detail', problem.code) }}">{{ problem.i18n_name or problem.name }}</a>
                             {% else %}
-                                {{ problem.i18n_name }}
+                                {{ problem.i18n_name or problem.name }}
                             {% endif %}
                         </td>
                         <td>{{ problem.points|floatformat }}{% if problem.partial %}p{% endif %}</td>
@@ -106,11 +108,13 @@
                                 {{ problem.user_count }}
                             {% endif %}
                         </td>
-                        <td>
-                            {% if problem.is_public and problem.has_public_editorial %}
-                                <a href="{{ url('problem_editorial', problem.code) }}">{{ _('Editorial') }}</a>
-                            {% endif %}
-                        </td>
+                        {% if contest_has_public_editorials %}
+                            <td>
+                                {% if problem.is_public and problem.has_public_editorial %}
+                                    <a href="{{ url('problem_editorial', problem.code) }}">{{ _('Editorial') }}</a>
+                                {% endif %}
+                            </td>
+                        {% endif %}
                     </tr>
                 {% endfor %}
                 </tbody>
@@ -134,4 +138,3 @@
     {{ super() }}
     {% include "comments/math.html" %}
 {% endblock %}
-k

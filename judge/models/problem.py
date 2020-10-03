@@ -5,10 +5,11 @@ from django.contrib.contenttypes.fields import GenericRelation
 from django.core.cache import cache
 from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
 from django.db import models
-from django.db.models import CASCADE, F, QuerySet, SET_NULL
+from django.db.models import CASCADE, F, Q, QuerySet, SET_NULL
 from django.db.models.expressions import RawSQL
 from django.db.models.functions import Coalesce
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
 
@@ -76,8 +77,7 @@ class TranslatedProblemQuerySet(SearchQuerySet):
     def add_i18n_name(self, language):
         queryset = self._clone()
         alias = unique_together_left_join(queryset, ProblemTranslation, 'problem', 'language', language)
-        return queryset.annotate(i18n_name=Coalesce(RawSQL('%s.name' % alias, ()), F('name'),
-                                                    output_field=models.CharField()))
+        return queryset.annotate(i18n_name=RawSQL('%s.name' % alias, ()))
 
 
 class TranslatedProblemForeignKeyQuerySet(QuerySet):
@@ -148,6 +148,7 @@ class Problem(models.Model):
     user_count = models.IntegerField(verbose_name=_('number of users'), default=0,
                                      help_text=_('The number of users who solved the problem.'))
     ac_rate = models.FloatField(verbose_name=_('solve rate'), default=0)
+    is_full_markup = models.BooleanField(verbose_name=_('allow full markdown access'), default=False)
 
     objects = TranslatedProblemQuerySet.as_manager()
     tickets = GenericRelation('Ticket')
@@ -177,9 +178,11 @@ class Problem(models.Model):
             return False
         if user.has_perm('judge.edit_all_problem') or user.has_perm('judge.edit_public_problem') and self.is_public:
             return True
-        return user.has_perm('judge.edit_own_problem') and self.is_editor(user.profile)
+        return user.has_perm('judge.edit_own_problem') and \
+            (user.profile.id in self.editor_ids or
+                self.is_organization_private and self.organizations.filter(admins=user.profile).exists())
 
-    def is_accessible_by(self, user):
+    def is_accessible_by(self, user, skip_contest_problem_check=False):
         # Problem is public.
         if self.is_public:
             # Problem is not private to an organization.
@@ -195,20 +198,25 @@ class Problem(models.Model):
                     self.organizations.filter(id__in=user.profile.organizations.all()):
                 return True
 
+        if not user.is_authenticated:
+            return False
+
         # If the user can view all problems.
         if user.has_perm('judge.see_private_problem'):
             return True
 
-        if not user.is_authenticated:
-            return False
-
-        # If the user authored the problem or is a curator.
-        if user.has_perm('judge.edit_own_problem') and self.is_editor(user.profile):
+        # If the user can edit the problem.
+        # We are using self.editor_ids to take advantage of caching.
+        if self.is_editable_by(user) or user.profile.id in self.editor_ids:
             return True
 
         # If user is a tester.
         if self.testers.filter(id=user.profile.id).exists():
             return True
+
+        # If we don't want to check if the user is in a contest containing that problem.
+        if skip_contest_problem_check:
+            return False
 
         # If user is currently in a contest containing that problem.
         current = user.profile.current_contest_id
@@ -219,6 +227,62 @@ class Problem(models.Model):
 
     def is_subs_manageable_by(self, user):
         return user.is_staff and user.has_perm('judge.rejudge_submission') and self.is_editable_by(user)
+
+    @classmethod
+    def get_visible_problems(cls, user):
+        # Do unauthenticated check here so we can skip authentication checks later on.
+        if not user.is_authenticated:
+            return cls.get_public_problems()
+
+        # Conditions for visible problem:
+        #   - `judge.edit_all_problem` or `judge.see_private_problem`
+        #   - otherwise
+        #       - not is_public problems
+        #           - author or curator or tester
+        #           - is_organization_private and admin of organization
+        #       - is_public problems
+        #           - not is_organization_private or in organization or `judge.see_organization_problem`
+        #           - author or curator or tester
+        queryset = cls.objects.defer('description')
+
+        if not (user.has_perm('judge.see_private_problem') or user.has_perm('judge.edit_all_problem')):
+            q = Q(is_public=True)
+            if not (user.has_perm('judge.see_organization_problem') or user.has_perm('judge.edit_public_problem')):
+                # Either not organization private or in the organization.
+                q &= (
+                    Q(is_organization_private=False) |
+                    Q(is_organization_private=True, organizations__in=user.profile.organizations.all())
+                )
+
+            if user.has_perm('judge.edit_own_problem'):
+                q |= Q(is_organization_private=True, organizations__in=user.profile.admin_of.all())
+
+            # Authors, curators, and testers should always have access, so OR at the very end.
+            q |= Q(authors=user.profile)
+            q |= Q(curators=user.profile)
+            q |= Q(testers=user.profile)
+            queryset = queryset.filter(q)
+
+        return queryset
+
+    @classmethod
+    def get_public_problems(cls):
+        return cls.objects.filter(is_public=True, is_organization_private=False).defer('description')
+
+    @classmethod
+    def get_editable_problems(cls, user):
+        if not user.has_perm('judge.edit_own_problem'):
+            return cls.objects.none()
+        if user.has_perm('judge.edit_all_problem'):
+            return cls.objects.all()
+
+        q = Q(authors=user.profile) | Q(curators=user.profile)
+        q |= Q(is_organization_private=True, organizations__in=user.profile.admin_of.all())
+
+        if user.has_perm('judge.edit_public_problem'):
+            q |= Q(is_public=True)
+
+        return cls.objects.filter(q)
 
     def __str__(self):
         return self.name
@@ -326,6 +390,10 @@ class Problem(models.Model):
         cache.set(key, result)
         return result
 
+    @property
+    def markdown_style(self):
+        return 'problem-full' if self.is_full_markup else 'problem'
+
     def save(self, *args, **kwargs):
         super(Problem, self).save(*args, **kwargs)
         if self.code != self.__original_code:
@@ -340,14 +408,15 @@ class Problem(models.Model):
 
     class Meta:
         permissions = (
-            ('see_private_problem', 'See hidden problems'),
-            ('edit_own_problem', 'Edit own problems'),
-            ('edit_all_problem', 'Edit all problems'),
-            ('edit_public_problem', 'Edit all public problems'),
-            ('clone_problem', 'Clone problem'),
-            ('change_public_visibility', 'Change is_public field'),
-            ('change_manually_managed', 'Change is_manually_managed field'),
-            ('see_organization_problem', 'See organization-private problems'),
+            ('see_private_problem', _('See hidden problems')),
+            ('edit_own_problem', _('Edit own problems')),
+            ('edit_all_problem', _('Edit all problems')),
+            ('edit_public_problem', _('Edit all public problems')),
+            ('problem_full_markup', _('Edit problems with full markup')),
+            ('clone_problem', _('Clone problem')),
+            ('change_public_visibility', _('Change is_public field')),
+            ('change_manually_managed', _('Change is_manually_managed field')),
+            ('see_organization_problem', _('See organization-private problems')),
         )
         verbose_name = _('problem')
         verbose_name_plural = _('problems')
@@ -405,9 +474,18 @@ class Solution(models.Model):
     def __str__(self):
         return _('Editorial for %s') % self.problem.name
 
+    def is_accessible_by(self, user):
+        if self.is_public and self.publish_on < timezone.now():
+            return True
+        if user.has_perm('judge.see_private_solution'):
+            return True
+        if self.problem.is_editable_by(user):
+            return True
+        return False
+
     class Meta:
         permissions = (
-            ('see_private_solution', 'See hidden solutions'),
+            ('see_private_solution', _('See hidden solutions')),
         )
         verbose_name = _('solution')
         verbose_name_plural = _('solutions')

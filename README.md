@@ -14,7 +14,7 @@ See it live at [dmoj.ca](https://dmoj.ca/)!
    * Specifying **per-language resource limits**
    * Capable of scaling to hundreds of judging servers
 * Extremely configurable contest system:
-   * Supports IOI/AtCoder/ECOO formats out-of-the box
+   * Supports ICPC/IOI/AtCoder/ECOO formats out-of-the box
    * **System testing** supported
    * **Hidden scoreboards** and **virtual participation**
    * Topcoder-style **rating**
@@ -64,7 +64,7 @@ Global, per-problem, and per-contest submission lists are live-updating, and can
 
 
 ### Extensible contest system
-Contests feature an optional rating system, and can be configured to run in any timeframe. Users are also able to participate virtually after the contest ends. IOI, AtCoder, and ECOO contest formats are supported out-of-the-box, and new formats can be added with custom code.
+Contests feature an optional rating system, and can be configured to run in any timeframe. Users are also able to participate virtually after the contest ends. ICPC, IOI, AtCoder, and ECOO contest formats are supported out-of-the-box, and new formats can be added with custom code.
 
 
 ![](https://i.imgur.com/0V1fzZi.png)
@@ -82,7 +82,7 @@ Announcements from administrators, ongoing contests, recent comments and new pro
 
 
 ### Internationalized interface
-Use the site in whatever language you're most comfortable in &mdash; currently fully supporting English, Simplified Chinese, and Romanian. Problem authors can provide statements in multiple languages, and DMOJ will display the most relevant one to a reader.
+Use the site in whatever language you're most comfortable in &mdash; visit [translate.dmoj.ca](https://translate.dmoj.ca/) to check the translation status of your preferred language. Problem authors can provide statements in multiple languages, and DMOJ will display the most relevant one to a reader.
 
 
 ![](https://i.imgur.com/OeuI0o5.png)
@@ -99,7 +99,7 @@ The DMOJ admin interface is highly versatile, and can be efficiently used for an
 
 ## Supported Languages
 
-Check out [**DMOJ/judge**](https://github.com/DMOJ/judge) for more judging backend details.
+Check out [**DMOJ/judge-server**](https://github.com/DMOJ/judge-server) for more judging backend details.
 
 Supported languages include:
 * C++ 11/14/17 (GCC and Clang)
@@ -144,6 +144,7 @@ The judge can also grade in the languages listed below. These languages are less
 * Turing
 * V8 JavaScript
 * Brain\*\*\*\*
+* Zig
 
 ## Docker
 

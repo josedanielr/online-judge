@@ -1,17 +1,10 @@
-import requests
 import json
-#import urllib2
 import os
-
-from contextlib import closing
 
 from ua_parser import user_agent_parser
 
-dir = os.path.abspath(os.path.dirname(__file__))
-data_json = os.path.join(dir, 'data.json')
-
-with closing(open(data_json)) as f:
-    _SUPPORT_DATA = json.load(f)['data']
+with open(os.path.join(os.path.dirname(__file__), '..', '..', 'resources', 'caniuse.json')) as f:
+    _SUPPORT_DATA = json.loads(f.read())['data']
 
 SUPPORT = 'y'
 PARTIAL_SUPPORT = 'a'

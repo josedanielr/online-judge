@@ -1,12 +1,14 @@
 from django.contrib import admin
 from django.forms import ModelForm
+from django.urls import reverse_lazy
 from django.utils.html import format_html
 from django.utils.translation import gettext, gettext_lazy as _, ungettext
 from reversion.admin import VersionAdmin
 
 from django_ace import AceWidget
 from judge.models import Profile
-from judge.widgets import AdminPagedownWidget, AdminSelect2Widget
+from judge.utils.views import NoBatchDeleteMixin
+from judge.widgets import AdminMartorWidget, AdminSelect2Widget
 
 
 class ProfileForm(ModelForm):
@@ -25,9 +27,8 @@ class ProfileForm(ModelForm):
             'language': AdminSelect2Widget,
             'ace_theme': AdminSelect2Widget,
             'current_contest': AdminSelect2Widget,
+            'about': AdminMartorWidget(attrs={'data-markdownfy-url': reverse_lazy('profile_preview')}),
         }
-        if AdminPagedownWidget is not None:
-            widgets['about'] = AdminPagedownWidget
 
 
 class TimezoneFilter(admin.SimpleListFilter):
@@ -43,7 +44,7 @@ class TimezoneFilter(admin.SimpleListFilter):
         return queryset.filter(timezone=self.value())
 
 
-class ProfileAdmin(VersionAdmin):
+class ProfileAdmin(NoBatchDeleteMixin, VersionAdmin):
     fields = ('user', 'display_rank', 'about', 'organizations', 'timezone', 'language', 'ace_theme',
               'math_engine', 'last_access', 'ip', 'mute', 'is_unlisted', 'notes', 'is_totp_enabled', 'user_script',
               'current_contest')
@@ -65,6 +66,7 @@ class ProfileAdmin(VersionAdmin):
         if request.user.has_perm('judge.totp'):
             fields = list(self.fields)
             fields.insert(fields.index('is_totp_enabled') + 1, 'totp_key')
+            fields.insert(fields.index('totp_key') + 1, 'scratch_codes')
             return tuple(fields)
         else:
             return self.fields

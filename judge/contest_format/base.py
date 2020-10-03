@@ -82,6 +82,16 @@ class BaseContestFormat(six.with_metaclass(ABCMeta)):
         """
         raise NotImplementedError()
 
+    @abstractmethod
+    def get_label_for_problem(self, index):
+        """
+        Returns the problem label for a given zero-indexed index.
+
+        :param index: The zero-indexed problem index.
+        :return: A string, the problem label.
+        """
+        raise NotImplementedError()
+
     @classmethod
     def best_solution_state(cls, points, total):
         if not points:

@@ -78,10 +78,12 @@ class Submission(models.Model):
     case_total = models.FloatField(verbose_name=_('test case total points'), default=0)
     judged_on = models.ForeignKey('Judge', verbose_name=_('judged on'), null=True, blank=True,
                                   on_delete=models.SET_NULL)
+    judged_date = models.DateTimeField(verbose_name=_('submission judge time'), default=None, null=True)
     was_rejudged = models.BooleanField(verbose_name=_('was rejudged by admin'), default=False)
     is_pretested = models.BooleanField(verbose_name=_('was ran on pretests only'), default=False)
     contest_object = models.ForeignKey('Contest', verbose_name=_('contest'), null=True, blank=True,
                                        on_delete=models.SET_NULL, related_name='+')
+    is_locked = models.BooleanField(verbose_name=_('lock submission'), default=False)
 
     objects = TranslatedProblemForeignKeyQuerySet.as_manager()
 
@@ -112,8 +114,9 @@ class Submission(models.Model):
     def long_status(self):
         return Submission.USER_DISPLAY_CODES.get(self.short_status, '')
 
-    def judge(self, rejudge=False, batch_rejudge=False):
-        judge_submission(self, rejudge, batch_rejudge)
+    def judge(self, *args, **kwargs):
+        if not self.is_locked:
+            judge_submission(self, *args, **kwargs)
 
     judge.alters_data = True
 
@@ -121,6 +124,22 @@ class Submission(models.Model):
         abort_submission(self)
 
     abort.alters_data = True
+
+    def can_see_detail(self, user):
+        if not user.is_authenticated:
+            return False
+        profile = user.profile
+        if self.problem.is_editable_by(user):
+            return True
+        elif user.has_perm('judge.view_all_submission'):
+            return True
+        elif self.user_id == profile.id:
+            return True
+        elif (self.problem.is_public or self.problem.testers.filter(id=profile.id).exists()) and \
+                self.problem.submission_set.filter(user_id=profile.id, result='AC',
+                                                   points=self.problem.points).exists():
+            return True
+        return False
 
     def update_contest(self):
         try:
@@ -171,12 +190,13 @@ class Submission(models.Model):
 
     class Meta:
         permissions = (
-            ('abort_any_submission', 'Abort any submission'),
-            ('rejudge_submission', 'Rejudge the submission'),
-            ('rejudge_submission_lot', 'Rejudge a lot of submissions'),
-            ('spam_submission', 'Submit without limit'),
-            ('view_all_submission', 'View all submission'),
-            ('resubmit_other', "Resubmit others' submission"),
+            ('abort_any_submission', _('Abort any submission')),
+            ('rejudge_submission', _('Rejudge the submission')),
+            ('rejudge_submission_lot', _('Rejudge a lot of submissions')),
+            ('spam_submission', _('Submit without limit')),
+            ('view_all_submission', _('View all submission')),
+            ('resubmit_other', _("Resubmit others' submission")),
+            ('lock_submission', _('Change lock status of submission')),
         )
         verbose_name = _('submission')
         verbose_name_plural = _('submissions')

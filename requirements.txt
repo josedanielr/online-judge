@@ -27,6 +27,11 @@ pymoss
 packaging
 celery
 sqlparse
+lupa
+-e git://github.com/DMOJ/martor.git#egg=martor
+netaddr
+webauthn
+bleach
 django_select2
 websocket-client
 websocket

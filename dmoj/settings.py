@@ -2,13 +2,14 @@
 Django settings for dmoj project.
 
 For more information on this file, see
-https://docs.djangoproject.com/en/1.11/topics/settings/
+https://docs.djangoproject.com/en/2.2/topics/settings/
 
 For the full list of settings and their values, see
-https://docs.djangoproject.com/en/1.11/ref/settings/
+https://docs.djangoproject.com/en/2.2/ref/settings/
 """
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
+import datetime
 import os
 import tempfile
 
@@ -19,7 +20,7 @@ from jinja2 import select_autoescape
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 
 # Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/1.11/howto/deployment/checklist/
+# See https://docs.djangoproject.com/en/2.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = '5*9f5q57mqmlz2#f$x1h76&jxy#yortjl1v+l*6hd18$d*yx#0'
@@ -62,7 +63,8 @@ DMOJ_PROBLEM_MAX_TIME_LIMIT = 60  # seconds
 DMOJ_PROBLEM_MIN_MEMORY_LIMIT = 0  # kilobytes
 DMOJ_PROBLEM_MAX_MEMORY_LIMIT = 1048576  # kilobytes
 DMOJ_PROBLEM_MIN_PROBLEM_POINTS = 0
-DMOJ_RATING_COLORS = False
+DMOJ_PROBLEM_HOT_PROBLEM_COUNT = 7
+DMOJ_RATING_COLORS = True
 DMOJ_EMAIL_THROTTLING = (10, 60)
 DMOJ_STATS_LANGUAGE_THRESHOLD = 10
 DMOJ_SUBMISSIONS_REJUDGE_LIMIT = 10
@@ -71,7 +73,12 @@ DMOJ_SUBMISSION_LIMIT = 2
 DMOJ_BLOG_NEW_PROBLEM_COUNT = 7
 DMOJ_BLOG_RECENTLY_ATTEMPTED_PROBLEMS_COUNT = 7
 DMOJ_TOTP_TOLERANCE_HALF_MINUTES = 1
+DMOJ_SCRATCH_CODES_COUNT = 5
 DMOJ_USER_MAX_ORGANIZATION_COUNT = 3
+# Whether to allow users to download their data
+DMOJ_USER_DATA_DOWNLOAD = False
+DMOJ_USER_DATA_CACHE = ''
+DMOJ_USER_DATA_DOWNLOAD_RATELIMIT = datetime.timedelta(days=1)
 DMOJ_COMMENT_VOTE_HIDE_THRESHOLD = -5
 DMOJ_PDF_PROBLEM_CACHE = ''
 DMOJ_PDF_PROBLEM_TEMP_DIR = tempfile.gettempdir()
@@ -82,6 +89,7 @@ DMOJ_STATS_SUBMISSION_RESULT_COLORS = {
     'CE': '#42586d',
     'ERR': '#ffa71c',
 }
+DMOJ_API_PAGE_SIZE = 1000
 
 MARKDOWN_STYLES = {}
 MARKDOWN_DEFAULT_STYLE = {}
@@ -123,6 +131,10 @@ SLIMERJS_PAPER_SIZE = 'Letter'
 
 PUPPETEER_MODULE = '/usr/lib/node_modules/puppeteer'
 PUPPETEER_PAPER_SIZE = 'Letter'
+
+USE_SELENIUM = False
+SELENIUM_CUSTOM_CHROME_PATH = None
+SELENIUM_CHROMEDRIVER_PATH = 'chromedriver'
 
 PYGMENT_THEME = 'pygment-github.css'
 INLINE_JQUERY = True
@@ -236,6 +248,7 @@ INSTALLED_APPS += (
     'statici18n',
     'impersonate',
     'django_jinja',
+    'martor',
 )
 
 MIDDLEWARE = (
@@ -243,6 +256,7 @@ MIDDLEWARE = (
     'django.middleware.common.CommonMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.locale.LocaleMiddleware',
+    'judge.middleware.APIMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'judge.middleware.DMOJLoginMiddleware',
@@ -345,6 +359,7 @@ LOCALE_PATHS = [
 ]
 
 LANGUAGES = [
+    ('ca', _('Catalan')),
     ('de', _('German')),
     ('en', _('English')),
     ('es', _('Spanish')),
@@ -362,6 +377,46 @@ LANGUAGES = [
     ('zh-hans', _('Simplified Chinese')),
     ('zh-hant', _('Traditional Chinese')),
 ]
+
+BLEACH_USER_SAFE_TAGS = [
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+    'b', 'i', 'strong', 'em', 'tt', 'del', 'kbd', 's', 'abbr', 'cite', 'mark', 'q', 'samp', 'small',
+    'u', 'var', 'wbr', 'dfn', 'ruby', 'rb', 'rp', 'rt', 'rtc', 'sub', 'sup', 'time', 'data',
+    'p', 'br', 'pre', 'span', 'div', 'blockquote', 'code', 'hr',
+    'ul', 'ol', 'li', 'dd', 'dl', 'dt', 'address', 'section',
+    'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'caption', 'colgroup', 'col', 'tfoot',
+    'img', 'audio', 'video', 'source',
+    'a',
+    'style', 'noscript', 'center',
+]
+
+BLEACH_USER_SAFE_ATTRS = {
+    '*': ['id', 'class', 'style'],
+    'img': ['src', 'alt', 'title', 'width', 'height', 'data-src'],
+    'a': ['href', 'alt', 'title'],
+    'abbr': ['title'],
+    'dfn': ['title'],
+    'time': ['datetime'],
+    'data': ['value'],
+    'td':  ['colspan', 'rowspan'],
+    'th':  ['colspan', 'rowspan'],
+    'audio': ['autoplay', 'controls', 'crossorigin', 'muted', 'loop', 'preload', 'src'],
+    'video': ['autoplay', 'controls', 'crossorigin', 'height', 'muted', 'loop', 'poster', 'preload', 'src', 'width'],
+    'source': ['src', 'srcset', 'type'],
+}
+
+MARKDOWN_STAFF_EDITABLE_STYLE = {
+    'safe_mode': False,
+    'use_camo': True,
+    'texoid': True,
+    'math': True,
+    'bleach': {
+        'tags': BLEACH_USER_SAFE_TAGS,
+        'attributes': BLEACH_USER_SAFE_ATTRS,
+        'styles': True,
+        'mathml': True,
+    },
+}
 
 MARKDOWN_ADMIN_EDITABLE_STYLE = {
     'safe_mode': False,
@@ -385,22 +440,42 @@ MARKDOWN_USER_LARGE_STYLE = {
 }
 
 MARKDOWN_STYLES = {
+    'default': MARKDOWN_DEFAULT_STYLE,
     'comment': MARKDOWN_DEFAULT_STYLE,
     'self-description': MARKDOWN_USER_LARGE_STYLE,
-    'problem': MARKDOWN_ADMIN_EDITABLE_STYLE,
-    'contest': MARKDOWN_ADMIN_EDITABLE_STYLE,
-    'language': MARKDOWN_ADMIN_EDITABLE_STYLE,
-    'license': MARKDOWN_ADMIN_EDITABLE_STYLE,
-    'judge': MARKDOWN_ADMIN_EDITABLE_STYLE,
-    'blog': MARKDOWN_ADMIN_EDITABLE_STYLE,
-    'solution': MARKDOWN_ADMIN_EDITABLE_STYLE,
-    'contest_tag': MARKDOWN_ADMIN_EDITABLE_STYLE,
+    'problem': MARKDOWN_STAFF_EDITABLE_STYLE,
+    'problem-full': MARKDOWN_ADMIN_EDITABLE_STYLE,
+    'contest': MARKDOWN_STAFF_EDITABLE_STYLE,
+    'flatpage': MARKDOWN_ADMIN_EDITABLE_STYLE,
+    'language': MARKDOWN_STAFF_EDITABLE_STYLE,
+    'license': MARKDOWN_STAFF_EDITABLE_STYLE,
+    'judge': MARKDOWN_STAFF_EDITABLE_STYLE,
+    'blog': MARKDOWN_STAFF_EDITABLE_STYLE,
+    'solution': MARKDOWN_STAFF_EDITABLE_STYLE,
+    'contest_tag': MARKDOWN_STAFF_EDITABLE_STYLE,
     'organization-about': MARKDOWN_USER_LARGE_STYLE,
     'ticket': MARKDOWN_USER_LARGE_STYLE,
 }
 
+MARTOR_ENABLE_CONFIGS = {
+    'imgur': 'true',
+    'mention': 'true',
+    'jquery': 'true',
+    'living': 'false',
+    'spellcheck': 'false',
+    'hljs': 'false',
+}
+MARTOR_MARKDOWNIFY_URL = '/widgets/preview/default'
+MARTOR_SEARCH_USERS_URL = '/widgets/martor/search-user'
+MARTOR_UPLOAD_URL = '/widgets/martor/upload-image'
+MARTOR_MARKDOWN_BASE_MENTION_URL = '/user/'
+
+# Directory under MEDIA_ROOT to use to store image uploaded through martor.
+MARTOR_UPLOAD_MEDIA_DIR = 'martor'
+MARTOR_UPLOAD_SAFE_EXTS = {'.jpg', '.png', '.gif'}
+
 # Database
-# https://docs.djangoproject.com/en/1.11/ref/settings/#databases
+# https://docs.djangoproject.com/en/2.2/ref/settings/#databases
 
 DATABASES = {
     'default': {
@@ -427,7 +502,7 @@ EVENT_DAEMON_AMQP_EXCHANGE = 'dmoj-events'
 EVENT_DAEMON_SUBMISSION_KEY = '6Sdmkx^%pk@GsifDfXcwX*Y7LRF%RGT8vmFpSxFBT$fwS7trc8raWfN#CSfQuKApx&$B#Gh2L7p%W!Ww'
 
 # Internationalization
-# https://docs.djangoproject.com/en/1.11/topics/i18n/
+# https://docs.djangoproject.com/en/2.2/topics/i18n/
 
 # Whatever you do, this better be one of the entries in `LANGUAGES`.
 LANGUAGE_CODE = 'en'
@@ -441,7 +516,7 @@ USE_TZ = True
 SESSION_ENGINE = 'django.contrib.sessions.backends.cached_db'
 
 # Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/1.11/howto/static-files/
+# https://docs.djangoproject.com/en/2.2/howto/static-files/
 
 DMOJ_RESOURCES = os.path.join(BASE_DIR, 'resources')
 STATICFILES_FINDERS = (
@@ -499,6 +574,8 @@ JUDGE_AMQP_PATH = None
 MOSS_API_KEY = None
 
 CELERY_WORKER_HIJACK_ROOT_LOGGER = False
+
+WEBAUTHN_RP_ID = None
 
 try:
     with open(os.path.join(os.path.dirname(__file__), 'local_settings.py')) as f:
