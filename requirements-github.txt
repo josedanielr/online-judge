@@ -1,3 +1,4 @@
 https://github.com/DMOJ/django-sortedm2m/archive/master.zip#egg=django-sortedm2m
 https://github.com/DMOJ/dmoj-wpadmin/archive/master.zip#egg=dmoj-wpadmin
 https://github.com/DMOJ/ansi2html/archive/develop.zip#egg=ansi2html
+https://github.com/DMOJ/martor/archive/master.zip#egg=martor
