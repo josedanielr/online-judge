@@ -26,13 +26,9 @@ RUN pip install --upgrade pip \
     && pip install -r requirements-github.txt \
     && rm requirements-github.txt
 
-RUN pip install python-memcached \
+RUN pip install python-memcached uwsgi \
     && pip install -r requirements.txt \
     && rm requirements.txt
-
-# Todo update base image and remove this
-RUN apk del uwsgi
-RUN pip install uwsgi
 
 RUN mkdir -p /dmoj/log /dmoj/code
 WORKDIR /dmoj/code
