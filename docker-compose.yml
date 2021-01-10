@@ -5,11 +5,7 @@ services:
     image: mariadb
     container_name: dmoj-db
     restart: unless-stopped
-    environment:
-      MYSQL_DATABASE: 'dmoj'
-      MYSQL_USER: 'dmoj'
-      MYSQL_PASSWORD: 'ChangeMe!'
-      MYSQL_ROOT_PASSWORD: 'ChangeMe!'
+    env_file: .docker/env/db.env
     volumes:
       - db_data:/var/lib/mysql
 
@@ -22,18 +18,29 @@ services:
     build:
       context: .
       dockerfile: .docker/site/Dockerfile
+    entrypoint: /dmoj/boot.sh
+    command: ["uwsgi", "--ini", "../uwsgi.ini"]
     container_name: dmoj-site
     restart: unless-stopped
-    environment:
-      - DEBUG=1
-      - SECRET_KEY=ChangeMe
-      - SQL_DATABASE_NAME=dmoj
-      - SQL_DATABASE_USER=dmoj
-      - SQL_DATABASE_PASSWORD=ChangeMe!
-      - SQL_DATABASE_HOST=db
+    env_file: .docker/env/django.env
     volumes:
       - ./log:/dmoj/log
       - app_static:/dmoj/static
+    depends_on:
+      - db
+      - redis
+      - bridged
+
+  bridged:
+    build:
+      context: .
+      dockerfile: .docker/site/Dockerfile
+    command: ["python", "manage.py", "runbridged"]
+    container_name: dmoj-bridged
+    restart: unless-stopped
+    env_file: .docker/env/django.env
+    volumes:
+      - ./log:/dmoj/log
     depends_on:
       - db
       - redis

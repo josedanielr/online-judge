@@ -38,7 +38,3 @@ COPY --from=builder resources resources/
 
 COPY .docker/site/uwsgi.ini ../
 COPY .docker/site/boot.sh ../
-
-ENTRYPOINT ["../boot.sh"]
-
-CMD ["uwsgi", "--ini", "../uwsgi.ini"]
