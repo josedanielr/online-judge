@@ -26,7 +26,7 @@ RUN pip install --upgrade pip \
     && pip install -r requirements-github.txt \
     && rm requirements-github.txt
 
-RUN pip install python-memcached uwsgi \
+RUN pip install django-redis uwsgi \
     && pip install -r requirements.txt \
     && rm requirements.txt
 

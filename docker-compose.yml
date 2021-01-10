@@ -13,9 +13,9 @@ services:
     volumes:
       - db_data:/var/lib/mysql
 
-  memcached:
-    image: memcached:alpine
-    container_name: dmoj-memcached
+  redis:
+    image: redis:alpine
+    container_name: dmoj-redis
     restart: unless-stopped
 
   site:
@@ -36,7 +36,7 @@ services:
       - app_static:/dmoj/static
     depends_on:
       - db
-      - memcached
+      - redis
 
   nginx:
     build:

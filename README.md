@@ -145,9 +145,3 @@ The judge can also grade in the languages listed below. These languages are less
 * V8 JavaScript
 * Brain\*\*\*\*
 * Zig
-
-## Docker
-
-- Build: `docker-compose build`
-- Run: `docker-compose up -d`
-- First time initialization of DB: `docker-compose exec site ./init_db.sh`
