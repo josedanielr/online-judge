@@ -24,8 +24,10 @@ services:
     restart: unless-stopped
     env_file: .docker/env/django.env
     volumes:
-      - ./log:/dmoj/log
       - app_static:/dmoj/static
+      - ./log:/dmoj/log
+      - .docker/volumes/problems:/dmoj/problems
+      - .docker/volumes/media:/dmoj/media
     depends_on:
       - db
       - redis
@@ -74,8 +76,9 @@ services:
     container_name: dmoj-nginx
     restart: unless-stopped
     volumes:
-      - ./log:/dmoj/log
       - app_static:/dmoj/static:ro
+      - ./log:/dmoj/log
+      - .docker/volumes/media:/dmoj/media
     ports:
       - "8002:80"
     depends_on:
