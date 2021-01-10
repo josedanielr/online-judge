@@ -45,6 +45,20 @@ services:
       - db
       - redis
 
+  celery:
+    build:
+      context: .
+      dockerfile: .docker/site/Dockerfile
+    command: ["celery", "-A", "dmoj_celery", "worker"]
+    container_name: dmoj-celery
+    restart: unless-stopped
+    env_file: .docker/env/django.env
+    volumes:
+      - ./log:/dmoj/log
+    depends_on:
+      - redis
+      - db
+
   nginx:
     build:
       context: .
