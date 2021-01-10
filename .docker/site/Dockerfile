@@ -38,7 +38,6 @@ COPY --from=builder resources resources/
 
 COPY .docker/site/uwsgi.ini ../
 COPY .docker/site/boot.sh ../
-COPY .docker/site/local_settings.py dmoj/
 
 ENTRYPOINT ["../boot.sh"]
 

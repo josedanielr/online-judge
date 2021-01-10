@@ -1,7 +1,6 @@
 version: '3'
 
 services:
-
   db:
     image: mariadb
     container_name: dmoj-db
@@ -52,19 +51,6 @@ services:
       - "8002:80"
     depends_on:
       - site
-
-  # base:
-  #   image: dmoj-site-base
-  #   build:
-  #     context: .
-  #     dockerfile: .docker/base/Dockerfile
-  # static:
-  #   image: dmoj-site-static
-  #   build:
-  #     context: .
-  #     dockerfile: .docker/static/Dockerfile
-  #   depends_on:
-  #     - base
 
 volumes:
   db_data:
