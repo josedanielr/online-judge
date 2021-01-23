@@ -20,6 +20,8 @@ ENV PYHTONUNBUFFERED 1
 # Use a local Nexus as mirror
 COPY .docker/conf/pip.conf /etc
 
+RUN apk --no-cache add git
+
 COPY requirements.txt requirements-github.txt ./
 
 RUN pip install --upgrade pip \
