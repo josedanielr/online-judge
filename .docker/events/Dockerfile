@@ -6,7 +6,7 @@ RUN mkdir /usr/etc
 COPY .docker/conf/npmrc /usr/etc
 RUN npm install qu ws simplesets
 
-COPY websocket .
+COPY websocket websocket/
 COPY .docker/events/config.js websocket/
 
 CMD ["node", "websocket/daemon.js"]
