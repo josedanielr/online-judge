@@ -32,6 +32,5 @@ netaddr
 webauthn
 bleach
 django_select2
-websocket
 websocket-client
 mysqlclient
