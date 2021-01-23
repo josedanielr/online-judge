@@ -22,15 +22,18 @@ COPY .docker/conf/pip.conf /etc
 
 RUN apk --no-cache add git
 
-COPY requirements.txt requirements-github.txt ./
-
 RUN pip install --upgrade pip \
-    && pip install -r requirements-github.txt \
+    && pip install uwsgi
+
+COPY requirements-github.txt ./
+RUN pip install -r requirements-github.txt \
     && rm requirements-github.txt
 
-RUN pip install django-redis uwsgi \
-    && pip install -r requirements.txt \
+COPY requirements.txt ./
+RUN pip install -r requirements.txt \
     && rm requirements.txt
+
+RUN pip install django-redis
 
 RUN mkdir -p /dmoj/log /dmoj/code
 WORKDIR /dmoj/code
