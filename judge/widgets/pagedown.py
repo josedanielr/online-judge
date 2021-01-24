@@ -1,4 +1,5 @@
 from django.contrib.admin import widgets as admin_widgets
+from django.conf import settings
 from django.forms.utils import flatatt
 from django.template.loader import get_template
 from django.utils.encoding import force_text
@@ -45,7 +46,7 @@ else:
         class Media:
             js = [
                 'mathjax_config.js',
-                '/lib/MathJax/MathJax.js?config=TeX-AMS-MML_HTMLorMML',
+                settings.MATHJAX_JS_URL,
                 'pagedown_math.js',
             ]
 

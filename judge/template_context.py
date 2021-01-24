@@ -28,6 +28,7 @@ def get_resource(request):
         'INLINE_JQUERY': settings.INLINE_JQUERY,
         'INLINE_FONTAWESOME': settings.INLINE_FONTAWESOME,
         'JQUERY_JS': settings.JQUERY_JS,
+        'MATHJAX_JS_URL': settings.MATHJAX_JS_URL,
         'FONTAWESOME_CSS': settings.FONTAWESOME_CSS,
         'DMOJ_SCHEME': scheme,
         'DMOJ_CANONICAL': settings.DMOJ_CANONICAL,

@@ -14,7 +14,7 @@
                             success: function () {
                                 $.ajax({
                                     type: "GET",
-                                    url: '/lib/MathJax/MathJax.js?config=TeX-AMS_HTML',
+                                    url: '{{ MATHJAX_JS_URL }}',
                                     dataType: "script",
                                     cache: true,
                                     success: function () {
