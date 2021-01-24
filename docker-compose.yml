@@ -79,6 +79,7 @@ services:
       - app_static:/dmoj/static:ro
       - ./log:/dmoj/log
       - .docker/volumes/media:/dmoj/media
+      - .docker/volumes/lib:/dmoj/lib
     ports:
       - "8002:80"
     depends_on:
